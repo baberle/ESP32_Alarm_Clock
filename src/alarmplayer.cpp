@@ -1,44 +1,29 @@
-#include <Arduino.h>
-#include <DFMiniMp3.h>
-
-const int SPKR_RX = 9;
-const int SPKR_TX = 10;
+#include "alarmplayer.h"
 
 class Mp3Notify; 
-typedef DFMiniMp3<HardwareSerial, Mp3Notify> DfMp3; 
+typedef DFMiniMp3<HardwareSerial, Mp3Notify> DfMp3;
 
 DfMp3 dfmp3(Serial1);
 
+/*
+TODO: Snooze
+TODO: volume ramp
+TODO: detect if sd card is inserted
+*/
+
 // Each soundbyte should be 1 minute long and ramp from 0 to 15 volume in 10 seconds
-const char *fileTitles[3] = {
+const char *fileTitles[4] = {
   "Star Wars",
   "Indiana Jones",
-  "Tintin"
+  "Tintin",
+  "The Cowboys"
 };
 
-/*bool alarmEnabled = true;
-bool alarmStarted = false;
-unsigned long startTime = 0;
-unsigned long volIncrease = 0;
-int alarmTrack;
-void startAlarm(int track);*/
+int alarmTimeout = 60000;
+int snoozeTime = 600000;
 
-struct AlarmPlayer {
-  /*DfMp3& player;*/
-  int track;
-  bool alarmEnabled;
-  unsigned long startTime;
-  unsigned long volIncrease;
-  AlarmPlayer(const int _track/*, DfMp3& _dfmp3*/);
-  void startAlarmPlayer();
-  void stopAlarmPlayer();
-  void snoozeAlarmPlayer();
-  void manageAlarmPlayer();
-};
-
-AlarmPlayer::AlarmPlayer(const int _track/*, DfMp3& _dfmp3*/) {
+AlarmPlayer::AlarmPlayer(const int _track) {
   track = _track;
-  /*player = _dfmp3;*/
 }
 
 void AlarmPlayer::startAlarmPlayer() {
@@ -57,7 +42,7 @@ void AlarmPlayer::stopAlarmPlayer() {
 
 void AlarmPlayer::manageAlarmPlayer() {
   if(alarmEnabled) {
-    if(millis() - startTime > 60000) {
+    if(millis() - startTime > alarmTimeout) {
       alarmEnabled = false;
       dfmp3.stop();
     } else
@@ -70,9 +55,6 @@ void AlarmPlayer::manageAlarmPlayer() {
     }
   }
 }
-
-
-AlarmPlayer ap(1/*, dfmp3*/);
 
 class Mp3Notify
 {
@@ -119,29 +101,21 @@ public:
   }
 };
 
-void setup() {
-  Serial.begin(115200);
-  Serial.println("initializing...");
-  dfmp3.begin();
-  uint16_t volume = dfmp3.getVolume();
-  Serial.print("volume ");
-  Serial.println(volume);
-  dfmp3.setVolume(10);
-  uint16_t count = dfmp3.getTotalTrackCount(DfMp3_PlaySource_Sd);
-  Serial.print("files ");
-  Serial.println(count);
-  Serial.println("starting...");
-  
-  ap.startAlarmPlayer();
+void setupDFPlayer(int alarmTimeout, int snoozeTime) {
+    dfmp3.begin();
+    dfmp3.setVolume(10);
+    if(Serial) {
+        Serial.println("initializing...");
+        uint16_t volume = dfmp3.getVolume();
+        Serial.print("volume ");
+        Serial.println(volume);
+        uint16_t count = dfmp3.getTotalTrackCount(DfMp3_PlaySource_Sd);
+        Serial.print("files ");
+        Serial.println(count);
+        Serial.println("starting...");
+    }
 }
 
-void alarmManager() {
-  ap.manageAlarmPlayer();
-  dfmp3.loop(); 
-}
-
-void loop() 
-{
-  alarmManager();
-
+void manageDFPlayer() {
+    dfmp3.loop();
 }

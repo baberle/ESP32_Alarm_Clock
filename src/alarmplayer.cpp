@@ -9,6 +9,7 @@ DfMp3 dfmp3(Serial1);
 TODO: Snooze
 TODO: volume ramp
 TODO: detect if sd card is inserted
+TODO: manage collisions if two alarms playing at the same time
 */
 
 // Each soundbyte should be 1 minute long and ramp from 0 to 15 volume in 10 seconds
@@ -24,6 +25,10 @@ int snoozeTime = 600000;
 
 AlarmPlayer::AlarmPlayer(const int _track) {
   track = _track;
+}
+
+AlarmPlayer::AlarmPlayer() {
+  track = 1;
 }
 
 void AlarmPlayer::startAlarmPlayer() {
@@ -103,7 +108,7 @@ public:
 
 void setupDFPlayer(int alarmTimeout, int snoozeTime) {
     dfmp3.begin();
-    dfmp3.setVolume(10);
+    dfmp3.setVolume(30);
     if(Serial) {
         Serial.println("initializing...");
         uint16_t volume = dfmp3.getVolume();

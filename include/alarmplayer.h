@@ -9,9 +9,10 @@ void manageDFPlayer();
 
 struct AlarmPlayer {
   int track;
-  bool alarmEnabled;
+  bool alarmEnabled; // true while the alarm is playing
   unsigned long startTime;
   unsigned long volIncrease;
+  AlarmPlayer();
   AlarmPlayer(const int _track);
   void startAlarmPlayer();
   void stopAlarmPlayer();

@@ -12,7 +12,6 @@ struct Alarm
     AlarmPlayer ap;
     Alarm();
     void checkAlarm(tm &timeinfo);
-    bool goingOff(tm &timeinfo) const;
     void increaseTime(int amt);
     void decreaseTime(int amt);
 };

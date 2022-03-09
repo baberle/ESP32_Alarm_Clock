@@ -20,8 +20,8 @@ void setup() {
   setupWiFi();
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   setupDFPlayer();
-  al.hour = 19;
-  al.minute = 45;
+  al.hour = 9;
+  al.minute = 6;
 }
 
 void WiFiConnect() {

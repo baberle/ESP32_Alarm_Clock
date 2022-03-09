@@ -6,8 +6,6 @@ typedef DFMiniMp3<HardwareSerial, Mp3Notify> DfMp3;
 DfMp3 dfmp3(Serial1);
 
 /*
-TODO: Snooze
-TODO: volume ramp
 TODO: detect if sd card is inserted
 TODO: manage collisions if two alarms playing at the same time
 */
@@ -22,6 +20,7 @@ const char *fileTitles[4] = {
 
 int alarmTimeout = 60000;
 int snoozeTime = 600000;
+bool alarmIsPlaying = false;
 
 AlarmPlayer::AlarmPlayer(const int _track) {
   track = _track;
@@ -32,9 +31,12 @@ AlarmPlayer::AlarmPlayer() {
 }
 
 void AlarmPlayer::startAlarmPlayer() {
+  if(Serial) Serial.println("Starting alarm player");
   volIncrease = millis();
   startTime = millis();
   alarmEnabled = true;
+  snoozed = false;
+  volume = 0;
   dfmp3.playMp3FolderTrack(track);
   dfmp3.setRepeatPlayCurrentTrack(true);
   dfmp3.setVolume(0);
@@ -47,18 +49,26 @@ void AlarmPlayer::stopAlarmPlayer() {
 
 void AlarmPlayer::manageAlarmPlayer() {
   if(alarmEnabled) {
+    if(snoozed) {
+      if(millis() - startTime > snoozeTime) {
+        startAlarmPlayer();
+      }
+    } else
     if(millis() - startTime > alarmTimeout) {
       alarmEnabled = false;
       dfmp3.stop();
-    } else
-    if(millis() - volIncrease > 200 && dfmp3.getVolume() < 15) {
-      dfmp3.increaseVolume();
+    } else 
+    if(millis() - volIncrease > 1500 && volume < 18) {
       volIncrease = millis();
-      uint16_t volume = dfmp3.getVolume();
-      Serial.print("Volume: ");
-      Serial.println(volume);
+      volume++;
+      dfmp3.setVolume(0.05*volume*volume);
     }
   }
+}
+
+void AlarmPlayer::snoozeAlarmPlayer() {
+  snoozed = true;
+  dfmp3.stop();
 }
 
 class Mp3Notify

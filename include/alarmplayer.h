@@ -9,7 +9,9 @@ void manageDFPlayer();
 
 struct AlarmPlayer {
   int track;
+  int volume;
   bool alarmEnabled; // true while the alarm is playing
+  bool snoozed;
   unsigned long startTime;
   unsigned long volIncrease;
   AlarmPlayer();

@@ -11,6 +11,7 @@
 #include "AiEsp32RotaryEncoder.h"
 #include "bitmaps.h"
 #include <Adafruit_I2CDevice.h> 
+//#include "BluetoothSerial.h"
 
 #define ROTARY_ENCODER_A_PIN 32
 #define ROTARY_ENCODER_B_PIN 21
@@ -22,5 +23,28 @@
 #define EINK_DC 17
 #define EINK_RST 16
 #define EINK_BUSY 4
+
+void manageLoop();
+
+void setupWiFi();
+void WiFiConnect();
+
+void drawPairing();
+void drawLoading();
+bool checkScreenTimeout();
+
+void mainTimeDisplayLoop();
+void drawWiFiIcon();
+void drawAlarmIcon();
+void displayClockPage(bool partial);
+
+void mainMenuLoop();
+void displayTitle();
+void displayMainMenu();
+void displayMenuSelectionIndicator(int selection);
+
+void alarmsLoop();
+void displayAlarms();
+
 
 #endif

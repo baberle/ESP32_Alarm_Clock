@@ -1,5 +1,13 @@
 #include "alarmclock.h"
 
+int prevMinute = 0;
+enum Change {none, full, partial};
+bool militaryTime = false;
+
+enum Screen {clock_scr, main_menu_scr, alarms_scr};
+Screen screen = clock_scr;
+unsigned long timeSinceLastAction = millis();
+
 Alarm al;
 
 const char *ssid     = "WirelessNW_2.4";
@@ -16,9 +24,14 @@ AiEsp32RotaryEncoder rotaryEncoder = AiEsp32RotaryEncoder(ROTARY_ENCODER_A_PIN, 
 
 GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display(GxEPD2_290(EINK_CS, EINK_DC, EINK_RST, EINK_BUSY)); // GDEH029A1 128x296
 
-void setupWiFi();
-void WiFiConnect();
-void drawWiFiIcon();
+
+/*#if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
+#error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
+#endif
+
+BluetoothSerial SerialBT;*/
+
+
 
 void IRAM_ATTR readEncoderISR()
 {
@@ -26,22 +39,36 @@ void IRAM_ATTR readEncoderISR()
 }
 
 void setup() {
-  Serial.begin(115200);
-  setupWiFi();
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  setupDFPlayer();
-  al.hour = 9;
-  al.minute = 6;
 
-  rotaryEncoder.begin();
-  rotaryEncoder.setup(readEncoderISR);
-  rotaryEncoder.setBoundaries(0, 1000, false); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
-  rotaryEncoder.setAcceleration(250);
+  Serial.begin(115200);
 
   display.init();
   display.setRotation(1);
   display.setFont(&FreeMonoBold9pt7b);
-  display.setTextColor(GxEPD_BLACK);  
+  display.setTextColor(GxEPD_BLACK); 
+
+  drawLoading();
+
+  /*SerialBT.begin("ESP32test");
+  Serial.println("The device started, now you can pair it with bluetooth!");*/
+
+  setupWiFi();
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  setupDFPlayer();
+  al.hour = 18;
+  al.minute = 39;
+
+  char timeString[10];
+  al.toString(false, timeString);
+  Serial.print("timeString: "); Serial.println(timeString);
+  al.toString(true, timeString);
+  Serial.print("timeString: "); Serial.println(timeString);
+
+
+  rotaryEncoder.begin();
+  rotaryEncoder.setup(readEncoderISR);
+  rotaryEncoder.setBoundaries(0, 1000, false); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
+  rotaryEncoder.setAcceleration(250); 
 }
 
 void WiFiConnect() {
@@ -71,16 +98,11 @@ void setupWiFi() {
 }
 
 
-int alreadyDrawn = false;
 void loop() 
 {
-  manageDFPlayer();
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
-    Serial.println("Failed to obtain time");
-    return;
-  }
-  al.checkAlarm(timeinfo);
+  
+  manageLoop();
+  
   if (rotaryEncoder.encoderChanged())
   {
       Serial.println(rotaryEncoder.readEncoder());
@@ -89,28 +111,411 @@ void loop()
   {
       Serial.println("button pressed");
   }
-  if(!alreadyDrawn) {
+
+  /*if (Serial.available()) {
+    SerialBT.write(Serial.read());
+  }
+  if (SerialBT.available()) {
+    Serial.write(SerialBT.read());
+  }
+  delay(20);*/
+
+  switch(screen) {
+    case clock_scr:
+      mainTimeDisplayLoop();
+      break;
+    case main_menu_scr:
+      mainMenuLoop();
+      break;
+    case alarms_scr:
+      alarmsLoop();
+      break;
+  } 
+
+}
+
+
+void manageLoop() {
+  manageDFPlayer();
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return;
+  }
+  al.checkAlarm(timeinfo);
+}
+
+
+void drawPairing() {
+
+  const char pairing[] = "Pairing ...";
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  display.getTextBounds(pairing, 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t x = ((display.width() - tbw) / 2) - tbx;
+  uint16_t y = ((display.height() - tbh) / 2) - tby;
+
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    display.setCursor(x,y);
+    display.print(pairing);
     drawWiFiIcon();
-    alreadyDrawn = true;
+  }
+  while (display.nextPage());
+
+}
+
+void drawLoading() {
+  const char conn[] = "Connecting ...";
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  display.getTextBounds(conn, 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t x = ((display.width() - tbw) / 2) - tbx;
+  uint16_t y = ((display.height() - tbh) / 2) - tby;*/
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    display.drawBitmap(15, 0, clock_logo, 259, 54, GxEPD_BLACK);
+    display.setCursor(x,y);
+    display.print(conn);
+  }
+  while (display.nextPage());
+}
+
+bool checkScreenTimeout() {
+  const int timeoutInterval = 2*60*1000;
+  if(millis() - timeSinceLastAction > timeoutInterval) {
+    if(screen != clock_scr) {
+      screen = clock_scr;
+      return true;
+    }
+    timeSinceLastAction = millis();
+  }
+  return false;
+}
+
+
+
+/* =========================== DISPLAY CLOCK =========================== */
+
+
+
+// Checks if the time has changed and returns the refresh type for the clock display
+Change minuteHasChanged() {
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return none;
+  }
+  int minute = timeinfo.tm_min;
+  int minB = minute%10;
+  if(minB != prevMinute) {
+    prevMinute = minB;
+    if(minB % 10 == 0) {
+      return full;
+    } else {
+      return partial;
+    }
+  } else {
+    return none;
+  }
+}
+
+// Handles everything for the main time screen
+void mainTimeDisplayLoop() {
+  if(Serial) Serial.println("Displaying main clock");
+  displayClockPage(false);
+  while(true) {
+    manageLoop();
+    // Change display if time has changed
+    Change ch = minuteHasChanged();
+    if(ch == full) {
+      displayClockPage(false);
+    } else 
+    if(ch == partial) {
+      displayClockPage(true);
+    }
+    // conditions to change state
+    if(rotaryEncoder.isEncoderButtonClicked()) {
+      screen = main_menu_scr;
+      break;
+    }
   }
 }
 
 // Draws the wifi icon at the top of the screen according to the wifi status
 void drawWiFiIcon() {
+  if(!WiFiEnabled) {
+    display.drawBitmap(296-24-1, 1, wifi_airplane_mode, 24, 24, GxEPD_BLACK);
+  } else {
+      if (WiFi.status() == WL_CONNECTED) 
+    {
+      display.drawBitmap(296-24-1, 1, wifi_connected, 24, 24, GxEPD_BLACK);
+    } else {
+      display.drawBitmap(296-24-1, 1, wifi_disconnected, 24, 24, GxEPD_BLACK);
+    }
+  }
+}
+
+// Draws the alarm icon at the top of the screen
+void drawAlarmIcon() {
+  if(al.active) {
+    display.drawBitmap(296-24-24-2, 1, alarm_icon, 24, 24, GxEPD_BLACK); 
+  }
+}
+
+// Gets the time, formats it, and displays it on the screen
+void displayClockPage(bool partial) {
+  
+  int height = 30;
+  int left = 10;
+
+  struct tm timeinfo;
+  char dateStringBuff[30];
+  bool morning = false;
+  
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return;
+  }
+
+  int hour;
+  if(!militaryTime){
+    hour = timeinfo.tm_hour % 12;
+  } else {
+    hour = timeinfo.tm_hour;
+  }
+  if(timeinfo.tm_hour < 12) morning = true;
+  if(hour == 0) hour = 12;
+  int minute = timeinfo.tm_min;
+
+  int hourA = hour/10;
+  int hourB = hour%10;
+  int minA = minute/10;
+  int minB = minute%10;
+
+  strftime(dateStringBuff, sizeof(dateStringBuff), "%A, %b %e", &timeinfo);
+
+  if(partial) {
+    display.setPartialWindow(0, 0, display.width(), display.height());
+  } else {
+    display.setFullWindow();
+  }
+  
   display.firstPage();
   do
   {
     display.fillScreen(GxEPD_WHITE);
-    if(!WiFiEnabled) {
-      display.drawBitmap(296-24-1, 1, wifi_airplane_mode, 24, 24, GxEPD_BLACK);
+    
+    display.setCursor(1, 12);
+    display.print(dateStringBuff);
+    
+    if(hourA == 0) {
+      display.drawBitmap(left+60-28, height, digit_allArray[hourB], 56, 85, GxEPD_BLACK);
+      display.fillCircle(left+60*2+10-28, 55, 5, GxEPD_BLACK);
+      display.fillCircle(left+60*2+10-28, 90, 5, GxEPD_BLACK);
+      display.drawBitmap(left+20+60*2-28, height, digit_allArray[minA], 56, 85, GxEPD_BLACK);
+      display.drawBitmap(left+20+60*3-28, height, digit_allArray[minB], 56, 85, GxEPD_BLACK);
+      display.setCursor(265-28, 111);
     } else {
-        if (WiFi.status() == WL_CONNECTED) 
-      {
-        display.drawBitmap(296-24-1, 1, wifi_connected, 24, 24, GxEPD_BLACK);
-      } else {
-        display.drawBitmap(296-24-1, 1, wifi_disconnected, 24, 24, GxEPD_BLACK);
+      display.drawBitmap(left, height, digit_allArray[hourA], 56, 85, GxEPD_BLACK);
+      display.drawBitmap(left+60, height, digit_allArray[hourB], 56, 85, GxEPD_BLACK);
+      display.fillCircle(left+60*2+10, 55, 5, GxEPD_BLACK);
+      display.fillCircle(left+60*2+10, 90, 5, GxEPD_BLACK);
+      display.drawBitmap(left+20+60*2, height, digit_allArray[minA], 56, 85, GxEPD_BLACK);
+      display.drawBitmap(left+20+60*3, height, digit_allArray[minB], 56, 85, GxEPD_BLACK);
+      display.setCursor(265, 111);
+    }
+
+    if(!militaryTime) {
+      if(morning) {
+        display.print("AM");
+      }
+      else {
+        display.print("PM");
+      }
+    }
+
+    drawWiFiIcon();
+    drawAlarmIcon();
+    
+  }
+  while (display.nextPage());
+}
+
+
+
+
+/* =========================== DISPLAY MAIN MENU =========================== */
+
+
+
+
+void mainMenuLoop() {
+
+  if(Serial) Serial.println("Displaying main menu");
+  
+  timeSinceLastAction = millis();
+  rotaryEncoder.setBoundaries(0, 3, false);
+  rotaryEncoder.setEncoderValue(0);
+  displayMainMenu();
+
+  while(true) {
+
+    if(rotaryEncoder.encoderChanged()) {
+      timeSinceLastAction = millis();
+      displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+    }
+    if(checkScreenTimeout()) return;
+    manageLoop();
+    
+    if(rotaryEncoder.isEncoderButtonClicked()) {
+      switch(rotaryEncoder.readEncoder()) {
+        case 0:
+          screen = alarms_scr;
+          break;
+        case 1:
+          break;
+        case 2:
+          //screen = main_settings_scr;
+          return;
+        case 3:
+          screen = clock_scr;
+          return;
       }
     }
   }
+}
+
+
+void displayTitle(const char* title) {
+  int16_t tbx, tby;
+  uint16_t tbw, tbh;
+  display.getTextBounds(title, 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t x = ((display.width() - tbw) / 2) - tbx;
+  display.fillRect(0, 0, display.width(), 24, GxEPD_BLACK);
+  display.setCursor(x, 16);
+  display.setTextColor(GxEPD_WHITE);
+  display.print("Main Menu");
+  display.setTextColor(GxEPD_BLACK);
+}
+
+
+void displayMainMenu() {
+
+  display.setFullWindow();
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+
+    displayTitle("Main Menu");
+    
+    display.setCursor(30, 22*2);
+    display.print("Alarms");
+    
+    display.setCursor(30, 22*3);
+    display.print("Set Time");
+    
+    display.setCursor(30, 22*4);
+    display.print("Settings");
+    
+    display.setCursor(30, 22*5);
+    display.print("Exit");
+  }
   while (display.nextPage());
+
+  displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+}
+
+
+void displayMenuSelectionIndicator(int selection) {
+  display.setPartialWindow(0, 24, 29, display.height());
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    display.fillCircle(15, 16+22*(selection+1), 3, GxEPD_BLACK);
+  }
+  while (display.nextPage());
+}
+
+
+
+/* =========================== DISPLAY ALARMS =========================== */
+
+int numAlarms = 2;
+Alarm al0;
+
+void testSetup() {
+  al0.hour = 11;
+  al0.minute = 52;
+  al0.day[1] = false;
+  al0.day[2] = false;
+}
+
+void alarmsLoop() {
+
+  if(Serial) Serial.println("Displaying alarms menu");
+
+  testSetup();
+  
+  timeSinceLastAction = millis();
+  rotaryEncoder.setBoundaries(0, 3, false);
+  rotaryEncoder.setEncoderValue(0);
+  displayAlarms();
+
+  while(true) {
+
+    if(rotaryEncoder.encoderChanged()) {
+      timeSinceLastAction = millis();
+      displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+    }
+    if(checkScreenTimeout()) return;
+    
+    if(rotaryEncoder.isEncoderButtonClicked()) {
+      switch(rotaryEncoder.readEncoder()) {
+        case 0:
+          //screen = alarm_selection_scr;
+          break;
+        case 1:
+          break;
+        case 2:
+          //screen = main_settings_scr;
+          return;
+        case 3:
+          screen = main_menu_scr;
+          return;
+      }
+    }
+  }
+}
+
+
+void displayAlarms() {
+
+  display.setFullWindow();
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+
+    displayTitle("Alarms");
+    
+    char timeString[10];
+    al0.toString(militaryTime, timeString);
+    display.setCursor(30, 22*2);
+    display.print(timeString);
+    display.setCursor(130, 22*2);
+    display.print("S,W,R,F,S");
+    display.setCursor(260, 22*2);
+    display.print("OFF");
+    
+    display.setCursor(30, 22*5);
+    display.print("Exit");
+  }
+  while (display.nextPage());
+
+  displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
 }

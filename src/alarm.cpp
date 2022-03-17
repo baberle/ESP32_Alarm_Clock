@@ -50,3 +50,44 @@ void Alarm::decreaseTime(int amt) {
     minute = 59 - (amt - minute);    
   }
 }
+
+// TODO: ensure it works for edge cases
+void Alarm::toString(bool militaryTime, char* timeString) {
+
+  if(militaryTime) {
+    timeString[0] = hour/10 + '0';
+    timeString[1] = hour%10 + '0';
+  } else {
+    int newHour = hour % 12;
+    timeString[0] = newHour/10 + '0';
+    if(timeString[0] == '0') timeString[0] = ' ';
+    timeString[1] = newHour%10 + '0';
+  }
+
+  timeString[2] = ':';
+
+  timeString[3] = minute/10 + '0';
+  timeString[4] = minute%10 + '0';
+
+  timeString[5] = ' ';
+
+  if(militaryTime) {
+    timeString[6] = ' ';
+    timeString[7] = ' ';
+  } else {
+    if(hour < 12) {
+      timeString[6] = 'A';
+    } else {
+      timeString[6] = 'P';
+    }
+    timeString[7] = 'M';
+  }
+
+  timeString[8] = '\0';
+
+  if(Serial) {
+    Serial.print("Alarm time to string: ");
+    Serial.println(timeString);
+  }
+
+}

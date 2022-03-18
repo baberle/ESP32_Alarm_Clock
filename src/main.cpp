@@ -5,7 +5,7 @@ enum Change {none, full, partial};
 bool militaryTime = false;
 
 enum Screen {clock_scr, main_menu_scr, alarms_scr};
-Screen screen = clock_scr;
+Screen screen = alarms_scr;
 unsigned long timeSinceLastAction = millis();
 
 Alarm al;
@@ -171,12 +171,12 @@ void drawLoading() {
   int16_t tbx, tby; uint16_t tbw, tbh;
   display.getTextBounds(conn, 0, 0, &tbx, &tby, &tbw, &tbh);
   uint16_t x = ((display.width() - tbw) / 2) - tbx;
-  uint16_t y = ((display.height() - tbh) / 2) - tby;*/
+  uint16_t y = (display.height() - tbh);
   display.firstPage();
   do
   {
     display.fillScreen(GxEPD_WHITE);
-    display.drawBitmap(15, 0, clock_logo, 259, 54, GxEPD_BLACK);
+    display.drawBitmap(15, 20, clock_logo, 259, 54, GxEPD_BLACK);
     display.setCursor(x,y);
     display.print(conn);
   }
@@ -445,14 +445,18 @@ void displayMenuSelectionIndicator(int selection) {
 
 /* =========================== DISPLAY ALARMS =========================== */
 
-int numAlarms = 2;
-Alarm al0;
+// TODO: some of these variabled can be made local
+int numAlarms = 10;
+int top = 0;
+int prevEncoderPostition = 0; // Probably already have this somewhere
+Alarm alarms[10];
 
 void testSetup() {
-  al0.hour = 11;
-  al0.minute = 52;
-  al0.day[1] = false;
-  al0.day[2] = false;
+  alarms[0].active = true;
+  alarms[0].hour = 11;
+  alarms[0].minute = 52;
+  alarms[0].day[1] = false;
+  alarms[0].day[2] = false;
 }
 
 void alarmsLoop() {
@@ -462,15 +466,24 @@ void alarmsLoop() {
   testSetup();
   
   timeSinceLastAction = millis();
-  rotaryEncoder.setBoundaries(0, 3, false);
+  rotaryEncoder.setBoundaries(0, numAlarms, false);
   rotaryEncoder.setEncoderValue(0);
-  displayAlarms();
+  displayAlarms(top);
 
   while(true) {
 
     if(rotaryEncoder.encoderChanged()) {
       timeSinceLastAction = millis();
-      displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+      int val = rotaryEncoder.readEncoder();
+      displayMenuSelectionIndicator(val);
+      if(val == top && top != 0 && val < prevEncoderPostition) {
+        top--;
+        displayAlarms(top);
+      }
+      if(val == top+3 && top != numAlarms-1 && val > prevEncoderPostition) {
+        top++;
+        displayAlarms(top);
+      }
     }
     if(checkScreenTimeout()) return;
     
@@ -493,7 +506,33 @@ void alarmsLoop() {
 }
 
 
-void displayAlarms() {
+void displayAlarmLine(Alarm& alarm, int lineNum) {
+
+  int lineHeight = 22*(lineNum+2);
+
+  char timeString[10];
+  alarm.toString(militaryTime, timeString);
+  display.setCursor(30, lineHeight);
+  display.print(timeString);
+
+  display.drawLine(130, lineHeight, 130, lineHeight-22, GxEPD_BLACK);
+
+  char dayString[10];
+  alarm.toDayString(dayString);
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  display.getTextBounds(dayString, 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t x = ((120 - tbw) / 2) - tbx;
+  display.setCursor(130+x, lineHeight);
+  display.print(dayString);
+
+  display.drawLine(250, lineHeight, 250, lineHeight-22, GxEPD_BLACK);
+
+  display.setCursor(260, lineHeight);
+  display.print(alarm.active ? "ON" : "OFF");
+}
+
+// TODO: add partial refresh option
+void displayAlarms(int topA) {
 
   display.setFullWindow();
   display.firstPage();
@@ -502,15 +541,14 @@ void displayAlarms() {
     display.fillScreen(GxEPD_WHITE);
 
     displayTitle("Alarms");
-    
-    char timeString[10];
-    al0.toString(militaryTime, timeString);
-    display.setCursor(30, 22*2);
-    display.print(timeString);
-    display.setCursor(130, 22*2);
-    display.print("S,W,R,F,S");
-    display.setCursor(260, 22*2);
-    display.print("OFF");
+
+    // top goes from 0 to numAlarms - 3
+    //int topA = 0;
+    int row = 0;
+    for(int i = topA; i < topA+3; i++) {
+      displayAlarmLine(alarms[i], row);
+      row++;
+    }
     
     display.setCursor(30, 22*5);
     display.print("Exit");

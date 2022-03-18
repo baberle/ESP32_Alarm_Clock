@@ -15,6 +15,8 @@ struct Alarm
     void increaseTime(int amt);
     void decreaseTime(int amt);
     void toString(bool militaryTime, char* timeString); // char array should be at least size 10
+    void toDayString(char* dayString); // TODO: these should be const
+    void reset();
 };
 
 #endif

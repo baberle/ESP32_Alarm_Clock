@@ -44,7 +44,7 @@ void displayMainMenu();
 void displayMenuSelectionIndicator(int selection);
 
 void alarmsLoop();
-void displayAlarms();
+void displayAlarms(int top);
 
 
 #endif

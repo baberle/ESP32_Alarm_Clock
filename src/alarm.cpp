@@ -4,8 +4,16 @@ Alarm::Alarm() {
     hour = 12;
     minute = 0;
     for(int i = 0; i < 7; i++) day[i] = true;
-    active  = true;
+    active  = false;
     ap.track = 1;
+}
+
+void Alarm::reset() {
+  hour = 12;
+  minute = 0;
+  for(int i = 0; i < 7; i++) day[i] = true;
+  active  = true;
+  ap.track = 1;
 }
 
 // TODO: this should only go off once a minute even if the person hits snooze before the minute is up (keep snooze value in alarm player)
@@ -62,6 +70,10 @@ void Alarm::toString(bool militaryTime, char* timeString) {
     timeString[0] = newHour/10 + '0';
     if(timeString[0] == '0') timeString[0] = ' ';
     timeString[1] = newHour%10 + '0';
+    if(timeString[1] == '0') {
+      timeString[0] = '1';
+      timeString[1] = '2';
+    }
   }
 
   timeString[2] = ':';
@@ -88,6 +100,48 @@ void Alarm::toString(bool militaryTime, char* timeString) {
   if(Serial) {
     Serial.print("Alarm time to string: ");
     Serial.println(timeString);
+  }
+
+}
+
+void Alarm::toDayString(char* dayString) {
+
+  const char days[] = {'S','M','T','W','R','F','S'};
+
+  bool allOn = false;
+  bool allOff = true;
+  bool weekdayOnly = true;
+  bool weekendOnly = true;
+
+  for(int dayNum = 0; dayNum < 7; dayNum++) {
+    if(!day[dayNum]) allOn = false;
+    if(day[dayNum]) allOff = false;
+    if(((dayNum == 0 || dayNum == 6) &&  day[dayNum]) ||
+       ((dayNum >  0 || dayNum <  6) && !day[dayNum])) weekdayOnly = false;
+    if((!(dayNum == 0 || dayNum == 6) &&  day[dayNum]) ||
+        ((dayNum == 0 || dayNum == 6) && !day[dayNum])) weekendOnly = false;
+  }
+
+  if(allOn) {
+    dayString = "All Days";
+  } else
+  if(allOff) {
+    dayString = "None";
+  } else
+  if(weekdayOnly) {
+    dayString = "Weekdays";
+  } else
+  if(weekendOnly) {
+    dayString = "Weekends";
+  } else {
+    int ctr = 0;
+    for(int dayNum = 0; dayNum < 7; dayNum++) {
+      if(day[dayNum]) {
+        dayString[ctr] = days[dayNum];
+        ctr++;
+      }
+    }
+    dayString[ctr]= '\0';
   }
 
 }

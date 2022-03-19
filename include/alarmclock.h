@@ -8,9 +8,11 @@
 #include <Fonts/FreeMonoBold9pt7b.h>
 #include "alarmplayer.h"
 #include "alarm.h"
+#include "alarmset.h"
 #include "AiEsp32RotaryEncoder.h"
 #include "bitmaps.h"
 #include <Adafruit_I2CDevice.h> 
+#include <string.h>
 //#include "BluetoothSerial.h"
 
 #define ROTARY_ENCODER_A_PIN 32
@@ -44,7 +46,11 @@ void displayMainMenu();
 void displayMenuSelectionIndicator(int selection);
 
 void alarmsLoop();
-void displayAlarms(int top);
+void displayAlarms(bool partial, int top);
+
+
+void timezoneLoop();
+void displayTimezones(bool partial, int top);
 
 
 #endif

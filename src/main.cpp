@@ -4,8 +4,8 @@ int prevMinute = 0;
 enum Change {none, full, partial};
 bool militaryTime = false;
 
-enum Screen {clock_scr, main_menu_scr, alarms_scr};
-Screen screen = alarms_scr;
+enum Screen {clock_scr, main_menu_scr, alarms_scr, timezone_scr};
+Screen screen = timezone_scr;
 unsigned long timeSinceLastAction = millis();
 
 Alarm al;
@@ -16,6 +16,45 @@ const char *password = "red66dog";
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = -18000;
 const int   daylightOffset_sec = 3600;
+
+const char* timeZoneDescription[31] = {
+  "Greenwich Mean",
+  "European Central",
+  "Eastern European",
+  "Egypt Standard",
+  "Eastern African",
+  "Middle East",
+  "Near East",
+  "Pakistan Lahore",
+  "India Standard",
+  "Bangladesh Standard",
+  "Vietnam Standard",
+  "China Taiwan",
+  "Japan Standard",
+  "Australia Central",
+  "Australia Eastern",
+  "Solomon Standard",
+  "New Zealand Standard",
+  "Midway Islands",
+  "Hawaii Standard",
+  "Alaska Standard",
+  "Pacific Standard",
+  "Phoeniz Standard",
+  "Mountain Standard",
+  "Central Standard",
+  "Eastern Standard",
+  "Indiana Eastern Standard",
+  "Puerto Rico",
+  "Canada Newfoundland",
+  "Argentina Standard",
+  "Brazil Eastern",
+  "Central African"
+};
+
+/*const int timeZoneOffset[24] = {
+
+};*/
+
 
 const char* hostname = "ESP32 Alarm Clock";
 const bool WiFiEnabled = true;
@@ -129,6 +168,9 @@ void loop()
       break;
     case alarms_scr:
       alarmsLoop();
+      break;
+    case timezone_scr:
+      timezoneLoop();
       break;
   } 
 
@@ -397,7 +439,7 @@ void displayTitle(const char* title) {
   display.fillRect(0, 0, display.width(), 24, GxEPD_BLACK);
   display.setCursor(x, 16);
   display.setTextColor(GxEPD_WHITE);
-  display.print("Main Menu");
+  display.print(title);
   display.setTextColor(GxEPD_BLACK);
 }
 
@@ -445,18 +487,40 @@ void displayMenuSelectionIndicator(int selection) {
 
 /* =========================== DISPLAY ALARMS =========================== */
 
-// TODO: some of these variabled can be made local
-int numAlarms = 10;
-int top = 0;
-int prevEncoderPostition = 0; // Probably already have this somewhere
-Alarm alarms[10];
+
+//int numAlarms = 6;
+//int numSetAlarms = 3;
+//Alarm alarms[10];
+
+AlarmSet alarmset;
 
 void testSetup() {
-  alarms[0].active = true;
-  alarms[0].hour = 11;
-  alarms[0].minute = 52;
-  alarms[0].day[1] = false;
-  alarms[0].day[2] = false;
+
+  alarmset.addAlarm();
+  alarmset.addAlarm();
+  alarmset.addAlarm();
+  alarmset.addAlarm();
+
+  alarmset.alarms[0].active = true;
+  alarmset.alarms[0].hour = 11;
+  alarmset.alarms[0].minute = 52;
+  alarmset.alarms[0].day[1] = false;
+  alarmset.alarms[0].day[2] = false;
+
+  alarmset.alarms[1].active = true;
+  alarmset.alarms[1].hour = 20;
+  alarmset.alarms[1].day[0] = false;
+  alarmset.alarms[1].day[6] = false;
+
+  alarmset.alarms[2].active = true;
+  alarmset.alarms[2].hour = 2;
+  alarmset.alarms[2].minute = 30;
+  alarmset.alarms[2].day[1] = false;
+  alarmset.alarms[2].day[2] = false;
+  alarmset.alarms[2].day[3] = false;
+  alarmset.alarms[2].day[4] = false;
+  alarmset.alarms[2].day[5] = false;
+
 }
 
 void alarmsLoop() {
@@ -464,42 +528,58 @@ void alarmsLoop() {
   if(Serial) Serial.println("Displaying alarms menu");
 
   testSetup();
+  int top = 0;
+  int prevEncoderPostition = 0; // Probably already have this somewhere
+
+  //Serial.println(getNextAlarm());
   
   timeSinceLastAction = millis();
-  rotaryEncoder.setBoundaries(0, numAlarms, false);
+  rotaryEncoder.setBoundaries(0, alarmset.numSetAlarms+2, false);
   rotaryEncoder.setEncoderValue(0);
-  displayAlarms(top);
+  displayAlarms(false, top);
+  displayMenuSelectionIndicator(0);
 
   while(true) {
 
     if(rotaryEncoder.encoderChanged()) {
       timeSinceLastAction = millis();
       int val = rotaryEncoder.readEncoder();
-      displayMenuSelectionIndicator(val);
+      Serial.print("Top: ");
+      Serial.print(top);
+      Serial.print(" Val: ");
+      Serial.println(val);
       if(val == top && top != 0 && val < prevEncoderPostition) {
+        prevEncoderPostition = val;
         top--;
-        displayAlarms(top);
-      }
-      if(val == top+3 && top != numAlarms-1 && val > prevEncoderPostition) {
+        displayAlarms(true, top);
+        displayMenuSelectionIndicator(0);
+      } else
+      if(val == top+4 && top != alarmset.numSetAlarms-2 && val > prevEncoderPostition) {
+        prevEncoderPostition = val;
         top++;
-        displayAlarms(top);
+        displayAlarms(true, top);
+        displayMenuSelectionIndicator(3);
+      } else {
+        displayMenuSelectionIndicator(val - top);
       }
     }
     if(checkScreenTimeout()) return;
     
     if(rotaryEncoder.isEncoderButtonClicked()) {
-      switch(rotaryEncoder.readEncoder()) {
-        case 0:
-          //screen = alarm_selection_scr;
-          break;
-        case 1:
-          break;
-        case 2:
-          //screen = main_settings_scr;
-          return;
-        case 3:
-          screen = main_menu_scr;
-          return;
+      int val = rotaryEncoder.readEncoder();
+      if(val < alarmset.numSetAlarms) {
+        // go to alarm setsing screen for alarm # val
+        Serial.println("Go into alarm");
+      } else 
+      if(val == alarmset.numSetAlarms) {
+        // Add new alarm logic
+        // go to alarm setting screen if room for another alarm
+        Serial.println("Making new alarm");
+        alarmset.addAlarm();
+      } else 
+      if(val == alarmset.numSetAlarms+1) {
+        screen = main_menu_scr;
+        return;
       }
     }
   }
@@ -532,28 +612,118 @@ void displayAlarmLine(Alarm& alarm, int lineNum) {
 }
 
 // TODO: add partial refresh option
-void displayAlarms(int topA) {
+void displayAlarms(bool partial, int topA) {
 
-  display.setFullWindow();
+  if(!partial) display.setFullWindow();
+  else display.setPartialWindow(0, 24, display.width(), display.height()-22);
   display.firstPage();
   do
   {
     display.fillScreen(GxEPD_WHITE);
 
-    displayTitle("Alarms");
+    if(!partial) displayTitle("Alarms");
 
-    // top goes from 0 to numAlarms - 3
-    //int topA = 0;
     int row = 0;
-    for(int i = topA; i < topA+3; i++) {
-      displayAlarmLine(alarms[i], row);
+    for(int i = topA; i < topA+4; i++) {
+      if(i < alarmset.numSetAlarms) {
+        displayAlarmLine(alarmset.alarms[i], row);
+      } else {
+        if(i == alarmset.numSetAlarms) {
+          int lineHeight = 22*(row+1);
+          display.drawBitmap(30, lineHeight+8, plus_outline, 18, 18, GxEPD_BLACK);
+          display.setCursor(30+18+4, lineHeight+22);
+          display.print("New Alarm");
+        } else 
+        if(i == alarmset.numSetAlarms+1) {
+          display.setCursor(30, 22*5);
+          display.print("Exit");
+        }
+      }
       row++;
     }
-    
-    display.setCursor(30, 22*5);
-    display.print("Exit");
+
   }
   while (display.nextPage());
+}
 
-  displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+
+
+/* =========================== CHOOSE TIMEZONES =========================== */
+
+
+
+void timezoneLoop() {
+
+  if(Serial) Serial.println("Displaying timezone menu");
+
+  int top = 24;
+  int prevEncoderPostition = 24;
+  
+  timeSinceLastAction = millis();
+  rotaryEncoder.setBoundaries(0, 30, false);
+  rotaryEncoder.setEncoderValue(24);
+  displayTimezones(false, top);
+  displayMenuSelectionIndicator(0);
+
+  while(true) {
+
+    if(checkScreenTimeout()) return;
+
+    if(rotaryEncoder.encoderChanged()) {
+      timeSinceLastAction = millis();
+      int val = rotaryEncoder.readEncoder();
+      if(val == top && top != 0 && val < prevEncoderPostition) {
+        prevEncoderPostition = val;
+        // TODO: should increade by possibly more then once because the library (but make sure it doesn't overstep)
+        top--;
+        displayTimezones(true, top);
+        displayMenuSelectionIndicator(0);
+      } else
+      if(val == top+4 && top != 30 && val > prevEncoderPostition) {
+        prevEncoderPostition = val;
+        top++;
+        displayTimezones(true, top);
+        displayMenuSelectionIndicator(3);
+      } else {
+        displayMenuSelectionIndicator(val - top);
+      }
+    }
+    
+    if(rotaryEncoder.isEncoderButtonClicked()) {
+      //int val = rotaryEncoder.readEncoder();
+      // TODO: change timezone offset
+      // TODO: This should go to the main menu screen which I did not add yet
+      screen = main_menu_scr;
+      return;
+    }
+
+  }
+}
+
+
+void displayTimezones(bool partial, int topA) {
+
+  if(partial) display.setPartialWindow(0, 24, display.width(), display.height()-22);
+  else display.setFullWindow();
+
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+
+    if(!partial) displayTitle("Alarms");
+
+    int row = 0;
+    for(int i = topA; i < topA+4; i++) {
+      // TODO: I think I should be able to fit 5 in here
+      // TODO: add "time" after every zone name
+      if(i > 30) Serial.print("Out of bounds");
+      int lineHeight = 22*(row+2);
+      display.setCursor(30, lineHeight);
+      display.print(timeZoneDescription[i]);
+      row++;
+    }
+
+  }
+  while (display.nextPage());
 }

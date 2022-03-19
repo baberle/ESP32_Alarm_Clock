@@ -97,10 +97,10 @@ void Alarm::toString(bool militaryTime, char* timeString) {
 
   timeString[8] = '\0';
 
-  if(Serial) {
+  /*if(Serial) {
     Serial.print("Alarm time to string: ");
     Serial.println(timeString);
-  }
+  }*/
 
 }
 
@@ -108,7 +108,7 @@ void Alarm::toDayString(char* dayString) {
 
   const char days[] = {'S','M','T','W','R','F','S'};
 
-  bool allOn = false;
+  bool allOn = true;
   bool allOff = true;
   bool weekdayOnly = true;
   bool weekendOnly = true;
@@ -117,22 +117,22 @@ void Alarm::toDayString(char* dayString) {
     if(!day[dayNum]) allOn = false;
     if(day[dayNum]) allOff = false;
     if(((dayNum == 0 || dayNum == 6) &&  day[dayNum]) ||
-       ((dayNum >  0 || dayNum <  6) && !day[dayNum])) weekdayOnly = false;
+       ((dayNum >  0 && dayNum <  6) && !day[dayNum])) weekdayOnly = false;
     if((!(dayNum == 0 || dayNum == 6) &&  day[dayNum]) ||
         ((dayNum == 0 || dayNum == 6) && !day[dayNum])) weekendOnly = false;
   }
 
   if(allOn) {
-    dayString = "All Days";
+    strcpy(dayString, "All Days");
   } else
   if(allOff) {
-    dayString = "None";
+    strcpy(dayString, "None");
   } else
   if(weekdayOnly) {
-    dayString = "Weekdays";
+    strcpy(dayString, "Weekdays");
   } else
   if(weekendOnly) {
-    dayString = "Weekends";
+    strcpy(dayString, "Weekends");
   } else {
     int ctr = 0;
     for(int dayNum = 0; dayNum < 7; dayNum++) {

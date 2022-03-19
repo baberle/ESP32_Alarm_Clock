@@ -4,8 +4,8 @@ int prevMinute = 0;
 enum Change {none, full, partial};
 bool militaryTime = false;
 
-enum Screen {clock_scr, main_menu_scr, alarms_scr, timezone_scr};
-Screen screen = timezone_scr;
+enum Screen {clock_scr, main_menu_scr, alarms_scr, timezone_scr, settings_scr};
+Screen screen = clock_scr;
 unsigned long timeSinceLastAction = millis();
 
 Alarm al;
@@ -51,9 +51,39 @@ const char* timeZoneDescription[31] = {
   "Central African"
 };
 
-/*const int timeZoneOffset[24] = {
-
-};*/
+const int timeZoneOffset[31] = {
+  0,
+  3600,
+  7200,
+  7200,
+  10800,
+  12600,
+  14400,
+  18000,
+  19800,
+  21600,
+  25200,
+  28800,
+  32400,
+  34200,
+  36000,
+  39600,
+  43200,
+  -39600,
+  -36000,
+  -32400,
+  -28800,
+  -25200,
+  -25200,
+  -21600,
+  -18000,
+  -18000,
+  -14400,
+  -12600,
+  -10800,
+  -10800,
+  -3600
+};
 
 
 const char* hostname = "ESP32 Alarm Clock";
@@ -92,7 +122,12 @@ void setup() {
   Serial.println("The device started, now you can pair it with bluetooth!");*/
 
   setupWiFi();
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  //configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  configTime(-5*3600, 3600, ntpServer);
+  //configTzTime("EST+5EDT,M3.2.0/2,M11.1.0/2", ntpServer);
+
+
   setupDFPlayer();
   al.hour = 18;
   al.minute = 39;
@@ -171,6 +206,9 @@ void loop()
       break;
     case timezone_scr:
       timezoneLoop();
+      break;
+    case settings_scr:
+      mainSettingsLoop();
       break;
   } 
 
@@ -420,7 +458,7 @@ void mainMenuLoop() {
         case 1:
           break;
         case 2:
-          //screen = main_settings_scr;
+          screen = settings_scr;
           return;
         case 3:
           screen = clock_scr;
@@ -668,6 +706,7 @@ void timezoneLoop() {
   while(true) {
 
     if(checkScreenTimeout()) return;
+    manageLoop();
 
     if(rotaryEncoder.encoderChanged()) {
       timeSinceLastAction = millis();
@@ -690,10 +729,13 @@ void timezoneLoop() {
     }
     
     if(rotaryEncoder.isEncoderButtonClicked()) {
-      //int val = rotaryEncoder.readEncoder();
-      // TODO: change timezone offset
-      // TODO: This should go to the main menu screen which I did not add yet
-      screen = main_menu_scr;
+      int val = rotaryEncoder.readEncoder();
+      // TODO: change timezone offset (with correct offset for daylight savings time)
+      if(val < 0 || val > 30) break;
+      Serial.print("New offset is: ");
+      Serial.println(timeZoneOffset[val]);
+      configTime(timeZoneOffset[val], daylightOffset_sec, ntpServer);
+      screen = settings_scr;
       return;
     }
 
@@ -726,4 +768,80 @@ void displayTimezones(bool partial, int topA) {
 
   }
   while (display.nextPage());
+}
+
+
+/* =========================== MAIN SETTIGNS SCREEN =========================== */
+
+
+void mainSettingsLoop() {
+
+  if(Serial) Serial.println("Displaying settings menu");
+
+  rotaryEncoder.setBoundaries(0, 3, false);
+  rotaryEncoder.setEncoderValue(0);
+  displayMainSettings(false);
+  timeSinceLastAction = millis();
+
+  while(true) {
+
+    if(checkScreenTimeout()) return;
+    manageLoop();
+
+    if(rotaryEncoder.encoderChanged()) {
+      timeSinceLastAction = millis();
+      displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+    }
+    
+    if(rotaryEncoder.isEncoderButtonClicked()) {
+      switch(rotaryEncoder.readEncoder()) {
+        case 0:
+          militaryTime = !militaryTime;
+          displayMainSettings(true);
+          break;
+        case 1:
+          screen = timezone_scr;
+          return;
+        case 2:
+          break;
+        case 3:
+          screen = main_menu_scr;
+          return;
+      }
+    }
+  }
+}
+
+
+void displayMainSettings(bool partial) {
+
+  if(partial) display.setPartialWindow(0, 0, display.width(), display.height());
+  else display.setFullWindow();
+  
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    
+    displayTitle("Settings");
+    
+    display.setCursor(30, 22*2);
+    if(militaryTime) {
+      display.print("24 Hour Time: ON");
+    } else {
+      display.print("24 Hour Time: OFF");
+    }    
+    
+    display.setCursor(30, 22*3);
+    display.print("Change Timezone");
+    
+    display.setCursor(30, 22*4);
+    display.print("Night Light");
+    
+    display.setCursor(30, 22*5);
+    display.print("Exit");
+  }
+  while (display.nextPage());
+
+  displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
 }

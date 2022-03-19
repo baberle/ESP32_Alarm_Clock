@@ -52,5 +52,8 @@ void displayAlarms(bool partial, int top);
 void timezoneLoop();
 void displayTimezones(bool partial, int top);
 
+void mainSettingsLoop();
+void displayMainSettings(bool partial);
+
 
 #endif

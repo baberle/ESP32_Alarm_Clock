@@ -73,6 +73,7 @@ int AlarmSet::getNextAlarm() const {
 }
 
 void AlarmSet::checkAllAlarms(tm &timeinfo) {
+    // does this work of disabled alarms?
     for(int i = 0; i < numSetAlarms; i++) {
         alarms[i].checkAlarm(timeinfo);
     }

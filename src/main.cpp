@@ -8,7 +8,8 @@ enum Screen {clock_scr, main_menu_scr, alarms_scr, timezone_scr, settings_scr};
 Screen screen = clock_scr;
 unsigned long timeSinceLastAction = millis();
 
-Alarm al;
+AlarmSet alarmset;
+//Alarm al;
 
 const char *ssid     = "WirelessNW_2.4";
 const char *password = "red66dog";
@@ -93,14 +94,24 @@ AiEsp32RotaryEncoder rotaryEncoder = AiEsp32RotaryEncoder(ROTARY_ENCODER_A_PIN, 
 
 GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display(GxEPD2_290(EINK_CS, EINK_DC, EINK_RST, EINK_BUSY)); // GDEH029A1 128x296
 
+int threshold = 40;
+bool touchDetected = false;
 
-/*#if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
-#error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
-#endif
+void hitSnooze() {
+  touchDetected = true;
+  Serial.println("Touch detected");
+  startLedMomentary();
+}
 
-BluetoothSerial SerialBT;*/
+const int PWM_CHANNEL = 0;
+const int PWM_FREQ = 255;
+const int PWM_RESOLUTION = 8;
+const int MAX_DUTY_CYCLE = (int)(pow(2,PWM_RESOLUTION)-1);
 
-
+void ledSetup() {
+  ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
+  ledcAttachPin(LED_1, PWM_CHANNEL);
+}
 
 void IRAM_ATTR readEncoderISR()
 {
@@ -118,32 +129,70 @@ void setup() {
 
   drawLoading();
 
-  /*SerialBT.begin("ESP32test");
-  Serial.println("The device started, now you can pair it with bluetooth!");*/
-
   setupWiFi();
 
-  //configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  configTime(-5*3600, 3600, ntpServer);
-  //configTzTime("EST+5EDT,M3.2.0/2,M11.1.0/2", ntpServer);
-
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
   setupDFPlayer();
-  al.hour = 18;
-  al.minute = 39;
 
-  char timeString[10];
-  al.toString(false, timeString);
-  Serial.print("timeString: "); Serial.println(timeString);
-  al.toString(true, timeString);
-  Serial.print("timeString: "); Serial.println(timeString);
-
+  testSetup();
+  //al.active = true;
+  //al.hour = 18;
+  //al.minute = 58;
+  //al.ap.startAlarmPlayer();
+  //alarmset.alarms[0].ap.startAlarmPlayer();
 
   rotaryEncoder.begin();
   rotaryEncoder.setup(readEncoderISR);
   rotaryEncoder.setBoundaries(0, 1000, false); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
   rotaryEncoder.setAcceleration(250); 
+
+  ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
+  ledcAttachPin(LED_1, PWM_CHANNEL);
+
+  touchAttachInterrupt(TOUCH, hitSnooze, threshold);
 }
+
+
+
+bool ledON = false;
+bool nightlight = false;
+unsigned long ledTimer;
+const unsigned long delayTime = 5000; // 4 seconds
+
+void startNightLight() {
+  nightlight = true;
+  ledcWrite(PWM_CHANNEL, MAX_DUTY_CYCLE);
+}
+
+void turnOffNightLight() {
+  nightlight = true;
+  ledcWrite(PWM_CHANNEL, 0);
+}
+
+void startLedMomentary() {
+  if(!nightlight) {
+    ledON = true;
+    ledcWrite(PWM_CHANNEL, MAX_DUTY_CYCLE-1);
+    ledTimer = millis();
+  }
+}
+
+void manageLED() {
+  if(ledON && !nightlight) {
+    if(millis() - ledTimer > delayTime) {
+      ledON = false;
+      ledcWrite(PWM_CHANNEL, 0);
+    } else
+    if(millis() - ledTimer > delayTime - 4000) {
+      float brightness = (MAX_DUTY_CYCLE/log(4000))*log(delayTime - (millis() - ledTimer));
+      if((int)brightness < 0 || (int)brightness > MAX_DUTY_CYCLE) return; // TODO: do I need this or is it capped?
+      ledcWrite(PWM_CHANNEL, (int)brightness);
+    }
+  }
+}
+
+
 
 void WiFiConnect() {
   long startTime = millis();
@@ -171,28 +220,39 @@ void setupWiFi() {
   WiFiConnect();
 }
 
+void testSetup() {
+
+  alarmset.addAlarm();
+  alarmset.addAlarm();
+  alarmset.addAlarm();
+  alarmset.addAlarm();
+
+  alarmset.alarms[0].active = true;
+  alarmset.alarms[0].hour = 19;
+  alarmset.alarms[0].minute = 31;
+  alarmset.alarms[0].day[1] = false;
+  alarmset.alarms[0].day[2] = false;
+
+  alarmset.alarms[1].active = true;
+  alarmset.alarms[1].hour = 20;
+  alarmset.alarms[1].day[0] = false;
+  alarmset.alarms[1].day[6] = false;
+
+  alarmset.alarms[2].active = true;
+  alarmset.alarms[2].hour = 2;
+  alarmset.alarms[2].minute = 30;
+  alarmset.alarms[2].day[1] = false;
+  alarmset.alarms[2].day[2] = false;
+  alarmset.alarms[2].day[3] = false;
+  alarmset.alarms[2].day[4] = false;
+  alarmset.alarms[2].day[5] = false;
+
+}
 
 void loop() 
 {
   
   manageLoop();
-  
-  if (rotaryEncoder.encoderChanged())
-  {
-      Serial.println(rotaryEncoder.readEncoder());
-  }
-  if (rotaryEncoder.isEncoderButtonClicked())
-  {
-      Serial.println("button pressed");
-  }
-
-  /*if (Serial.available()) {
-    SerialBT.write(Serial.read());
-  }
-  if (SerialBT.available()) {
-    Serial.write(SerialBT.read());
-  }
-  delay(20);*/
 
   switch(screen) {
     case clock_scr:
@@ -214,7 +274,6 @@ void loop()
 
 }
 
-
 void manageLoop() {
   manageDFPlayer();
   struct tm timeinfo;
@@ -222,29 +281,11 @@ void manageLoop() {
     Serial.println("Failed to obtain time");
     return;
   }
-  al.checkAlarm(timeinfo);
+  //al.checkAlarm(timeinfo);
+  alarmset.checkAllAlarms(timeinfo);
+  manageLED();
 }
 
-
-void drawPairing() {
-
-  const char pairing[] = "Pairing ...";
-  int16_t tbx, tby; uint16_t tbw, tbh;
-  display.getTextBounds(pairing, 0, 0, &tbx, &tby, &tbw, &tbh);
-  uint16_t x = ((display.width() - tbw) / 2) - tbx;
-  uint16_t y = ((display.height() - tbh) / 2) - tby;
-
-  display.firstPage();
-  do
-  {
-    display.fillScreen(GxEPD_WHITE);
-    display.setCursor(x,y);
-    display.print(pairing);
-    drawWiFiIcon();
-  }
-  while (display.nextPage());
-
-}
 
 void drawLoading() {
   const char conn[] = "Connecting ...";
@@ -340,8 +381,11 @@ void drawWiFiIcon() {
 
 // Draws the alarm icon at the top of the screen
 void drawAlarmIcon() {
-  if(al.active) {
-    display.drawBitmap(296-24-24-2, 1, alarm_icon, 24, 24, GxEPD_BLACK); 
+  for(int i = 0; i < alarmset.numAlarms; i++) {
+    if(alarmset.alarms[i].active) {
+      display.drawBitmap(296-24-24-2, 1, alarm_icon, 24, 24, GxEPD_BLACK); 
+      break;
+    }
   }
 }
 
@@ -526,46 +570,10 @@ void displayMenuSelectionIndicator(int selection) {
 /* =========================== DISPLAY ALARMS =========================== */
 
 
-//int numAlarms = 6;
-//int numSetAlarms = 3;
-//Alarm alarms[10];
-
-AlarmSet alarmset;
-
-void testSetup() {
-
-  alarmset.addAlarm();
-  alarmset.addAlarm();
-  alarmset.addAlarm();
-  alarmset.addAlarm();
-
-  alarmset.alarms[0].active = true;
-  alarmset.alarms[0].hour = 11;
-  alarmset.alarms[0].minute = 52;
-  alarmset.alarms[0].day[1] = false;
-  alarmset.alarms[0].day[2] = false;
-
-  alarmset.alarms[1].active = true;
-  alarmset.alarms[1].hour = 20;
-  alarmset.alarms[1].day[0] = false;
-  alarmset.alarms[1].day[6] = false;
-
-  alarmset.alarms[2].active = true;
-  alarmset.alarms[2].hour = 2;
-  alarmset.alarms[2].minute = 30;
-  alarmset.alarms[2].day[1] = false;
-  alarmset.alarms[2].day[2] = false;
-  alarmset.alarms[2].day[3] = false;
-  alarmset.alarms[2].day[4] = false;
-  alarmset.alarms[2].day[5] = false;
-
-}
-
 void alarmsLoop() {
 
   if(Serial) Serial.println("Displaying alarms menu");
 
-  testSetup();
   int top = 0;
   int prevEncoderPostition = 0; // Probably already have this somewhere
 

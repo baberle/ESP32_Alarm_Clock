@@ -13,6 +13,7 @@
 #include "bitmaps.h"
 #include <Adafruit_I2CDevice.h> 
 #include <string.h>
+#include <math.h>
 //#include "BluetoothSerial.h"
 
 #define ROTARY_ENCODER_A_PIN 32
@@ -26,12 +27,21 @@
 #define EINK_RST 16
 #define EINK_BUSY 4
 
-void manageLoop();
+#define LED_1 26
+#define TOUCH 27
 
 void setupWiFi();
 void WiFiConnect();
 
-void drawPairing();
+void testSetup();
+
+void manageLoop();
+
+void startNightLight();
+void turnOffNightLight();
+void startLedMomentary();
+void manageLED();
+
 void drawLoading();
 bool checkScreenTimeout();
 
@@ -47,7 +57,6 @@ void displayMenuSelectionIndicator(int selection);
 
 void alarmsLoop();
 void displayAlarms(bool partial, int top);
-
 
 void timezoneLoop();
 void displayTimezones(bool partial, int top);

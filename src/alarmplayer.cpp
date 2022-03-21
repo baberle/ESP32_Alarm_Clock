@@ -59,6 +59,10 @@ void AlarmPlayer::manageAlarmPlayer() {
       dfmp3.stop();
     } else 
     if(millis() - volIncrease > 1500 && volume < 18) {
+      if(Serial) {
+        Serial.print("Increasing volume from ");
+        Serial.println(volume);
+      }
       volIncrease = millis();
       volume++;
       dfmp3.setVolume(0.05*volume*volume);
@@ -118,7 +122,7 @@ public:
 
 void setupDFPlayer(int alarmTimeout, int snoozeTime) {
     dfmp3.begin();
-    dfmp3.setVolume(30);
+    dfmp3.setVolume(20);
     if(Serial) {
         Serial.println("initializing...");
         uint16_t volume = dfmp3.getVolume();

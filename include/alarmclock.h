@@ -14,6 +14,7 @@
 #include <Adafruit_I2CDevice.h> 
 #include <string.h>
 #include <math.h>
+#include "backlight.h"
 //#include "BluetoothSerial.h"
 
 #define ROTARY_ENCODER_A_PIN 32

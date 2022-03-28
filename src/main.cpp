@@ -86,6 +86,8 @@ const int timeZoneOffset[31] = {
   -3600
 };
 
+// considerations, such as limiting number of alarms and making number of alarms static, because limited memory
+// consider alignment of structs to prevent wasted space
 
 const char* hostname = "ESP32 Alarm Clock";
 const bool WiFiEnabled = true;
@@ -94,24 +96,30 @@ AiEsp32RotaryEncoder rotaryEncoder = AiEsp32RotaryEncoder(ROTARY_ENCODER_A_PIN, 
 
 GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display(GxEPD2_290(EINK_CS, EINK_DC, EINK_RST, EINK_BUSY)); // GDEH029A1 128x296
 
+Channel ch1(0, 255, 8);
+Backlight backlight(LED_1, ch1);
+
 int threshold = 40;
 bool touchDetected = false;
 
 void hitSnooze() {
   touchDetected = true;
   Serial.println("Touch detected");
-  startLedMomentary();
+  //startLedMomentary();
+  backlight.startMomentary();
 }
 
-const int PWM_CHANNEL = 0;
+/*const int PWM_CHANNEL = 0;
 const int PWM_FREQ = 255;
 const int PWM_RESOLUTION = 8;
-const int MAX_DUTY_CYCLE = (int)(pow(2,PWM_RESOLUTION)-1);
+const int MAX_DUTY_CYCLE = (int)(pow(2,PWM_RESOLUTION)-1);*/
 
-void ledSetup() {
+/*void ledSetup() {
   ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
   ledcAttachPin(LED_1, PWM_CHANNEL);
-}
+}*/
+
+
 
 void IRAM_ATTR readEncoderISR()
 {
@@ -147,15 +155,15 @@ void setup() {
   rotaryEncoder.setBoundaries(0, 1000, false); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
   rotaryEncoder.setAcceleration(250); 
 
-  ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
-  ledcAttachPin(LED_1, PWM_CHANNEL);
+  /*ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
+  ledcAttachPin(LED_1, PWM_CHANNEL);*/
 
   touchAttachInterrupt(TOUCH, hitSnooze, threshold);
 }
 
 
 
-bool ledON = false;
+/*bool ledON = false;
 bool nightlight = false;
 unsigned long ledTimer;
 const unsigned long delayTime = 5000; // 4 seconds
@@ -190,7 +198,7 @@ void manageLED() {
       ledcWrite(PWM_CHANNEL, (int)brightness);
     }
   }
-}
+}*/
 
 
 
@@ -283,7 +291,8 @@ void manageLoop() {
   }
   //al.checkAlarm(timeinfo);
   alarmset.checkAllAlarms(timeinfo);
-  manageLED();
+  //manageLED();
+  backlight.manageBacklight();
 }
 
 

@@ -4,12 +4,21 @@ int prevMinute = 0;
 enum Change {none, full, partial};
 bool militaryTime = false;
 
-enum Screen {clock_scr, main_menu_scr, alarms_scr, timezone_scr, settings_scr};
+enum Screen {
+  clock_scr, 
+  main_menu_scr, 
+  alarms_scr, 
+  alarm_setting_scr,
+  chime_setting_scr,
+  timezone_scr, 
+  settings_scr
+};
 Screen screen = clock_scr;
 unsigned long timeSinceLastAction = millis();
 
 AlarmSet alarmset;
 //Alarm al;
+Alarm* currentSelectedAlarm;
 
 const char *ssid     = "WirelessNW_2.4";
 const char *password = "red66dog";
@@ -88,6 +97,9 @@ const int timeZoneOffset[31] = {
 
 // considerations, such as limiting number of alarms and making number of alarms static, because limited memory
 // consider alignment of structs to prevent wasted space
+// explanation of the different options and the benefits/downsides of each
+//    this could include IDE, microcontroller, microcontroller settings, coding style,
+//    other choices for components (slow refresh time)
 
 const char* hostname = "ESP32 Alarm Clock";
 const bool WiFiEnabled = true;
@@ -102,24 +114,30 @@ Backlight backlight(LED_1, ch1);
 int threshold = 40;
 bool touchDetected = false;
 
+const char *fileTitles[14] = {
+  "Star Wars",
+  "Indiana Jones",
+  "Tintin",
+  "The Cowboys",
+  "Dragon's Den",
+  "Here Comes the Sun",
+  "Classic 1",
+  "Classic 2",
+  "Morning has Broken",
+  "Arcade Fire",
+  "Blue Sky",
+  "Morning Mood",
+  "Call to Cows",
+  "Rooster"
+};
+const int numFileTitles = 14;
+
 void hitSnooze() {
   touchDetected = true;
   Serial.println("Touch detected");
   //startLedMomentary();
   backlight.startMomentary();
 }
-
-/*const int PWM_CHANNEL = 0;
-const int PWM_FREQ = 255;
-const int PWM_RESOLUTION = 8;
-const int MAX_DUTY_CYCLE = (int)(pow(2,PWM_RESOLUTION)-1);*/
-
-/*void ledSetup() {
-  ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
-  ledcAttachPin(LED_1, PWM_CHANNEL);
-}*/
-
-
 
 void IRAM_ATTR readEncoderISR()
 {
@@ -142,6 +160,7 @@ void setup() {
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
   setupDFPlayer();
+  stopTrack();
 
   testSetup();
   //al.active = true;
@@ -155,51 +174,8 @@ void setup() {
   rotaryEncoder.setBoundaries(0, 1000, false); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
   rotaryEncoder.setAcceleration(250); 
 
-  /*ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
-  ledcAttachPin(LED_1, PWM_CHANNEL);*/
-
   touchAttachInterrupt(TOUCH, hitSnooze, threshold);
 }
-
-
-
-/*bool ledON = false;
-bool nightlight = false;
-unsigned long ledTimer;
-const unsigned long delayTime = 5000; // 4 seconds
-
-void startNightLight() {
-  nightlight = true;
-  ledcWrite(PWM_CHANNEL, MAX_DUTY_CYCLE);
-}
-
-void turnOffNightLight() {
-  nightlight = true;
-  ledcWrite(PWM_CHANNEL, 0);
-}
-
-void startLedMomentary() {
-  if(!nightlight) {
-    ledON = true;
-    ledcWrite(PWM_CHANNEL, MAX_DUTY_CYCLE-1);
-    ledTimer = millis();
-  }
-}
-
-void manageLED() {
-  if(ledON && !nightlight) {
-    if(millis() - ledTimer > delayTime) {
-      ledON = false;
-      ledcWrite(PWM_CHANNEL, 0);
-    } else
-    if(millis() - ledTimer > delayTime - 4000) {
-      float brightness = (MAX_DUTY_CYCLE/log(4000))*log(delayTime - (millis() - ledTimer));
-      if((int)brightness < 0 || (int)brightness > MAX_DUTY_CYCLE) return; // TODO: do I need this or is it capped?
-      ledcWrite(PWM_CHANNEL, (int)brightness);
-    }
-  }
-}*/
-
 
 
 void WiFiConnect() {
@@ -271,6 +247,12 @@ void loop()
       break;
     case alarms_scr:
       alarmsLoop();
+      break;
+    case alarm_setting_scr:
+      alarmSettingsLoop(*currentSelectedAlarm);
+      break;
+    case chime_setting_scr:
+      chimeLoop(*currentSelectedAlarm);
       break;
     case timezone_scr:
       timezoneLoop();
@@ -507,7 +489,7 @@ void mainMenuLoop() {
       switch(rotaryEncoder.readEncoder()) {
         case 0:
           screen = alarms_scr;
-          break;
+          return;
         case 1:
           break;
         case 2:
@@ -625,6 +607,9 @@ void alarmsLoop() {
       if(val < alarmset.numSetAlarms) {
         // go to alarm setsing screen for alarm # val
         Serial.println("Go into alarm");
+        currentSelectedAlarm = &alarmset.alarms[val];
+        screen = alarm_setting_scr;
+        return;
       } else 
       if(val == alarmset.numSetAlarms) {
         // Add new alarm logic
@@ -861,4 +846,267 @@ void displayMainSettings(bool partial) {
   while (display.nextPage());
 
   displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+}
+
+/* =========================== ALARM SETTIGNS 1 =========================== */
+
+void alarmSettingsLoop(Alarm& currentAlarm) {
+
+  if(Serial) Serial.println("Displaying alarm settings menu");
+
+  rotaryEncoder.setBoundaries(0, 3, false);
+  rotaryEncoder.setEncoderValue(0);
+  displayAlarmSettings(false, currentAlarm.active, currentAlarm.snooze);
+  timeSinceLastAction = millis();
+
+  while(true) {
+
+    if(checkScreenTimeout()) return;
+    manageLoop();
+
+    if(rotaryEncoder.encoderChanged()) {
+      timeSinceLastAction = millis();
+      displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+    }
+    
+    if(rotaryEncoder.isEncoderButtonClicked()) {
+      switch(rotaryEncoder.readEncoder()) {
+        case 0:
+          currentAlarm.active = !currentAlarm.active;
+          displayAlarmSettings(true, currentAlarm.active, currentAlarm.snooze);
+          break;
+        case 1:
+          currentAlarm.snooze = !currentAlarm.snooze;
+          displayAlarmSettings(true, currentAlarm.active, currentAlarm.snooze);
+          return;
+        case 2:
+          screen = chime_setting_scr;
+          return;
+        case 3:
+          screen = main_menu_scr;
+          return;
+      }
+    }
+  }
+}
+
+void displayAlarmSettings(bool partial, bool alarmStatus, bool snoozeStatus) {
+
+  if(partial) display.setPartialWindow(0, 0, display.width(), display.height());
+  else display.setFullWindow();
+  
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    
+    displayTitle("Alarm Settings");
+    
+    display.setCursor(30, 22*2);
+    if(alarmStatus) {
+      display.print("Alarm: ON");
+    } else {
+      display.print("Alarm: OFF");
+    } 
+    
+    display.setCursor(30, 22*3);
+    if(snoozeStatus) {
+      display.print("Snooze: ON");
+    } else {
+      display.print("Snooze: OFF");
+    }  
+    
+    display.setCursor(30, 22*4);
+    display.print("Set Chime");
+    
+    display.setCursor(30, 22*5);
+    display.print("Next");
+  }
+  while (display.nextPage());
+
+  displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+}
+
+/* =========================== CHIME SELECTION =========================== */
+
+void chimeLoop(Alarm& currentAlarm) {
+
+  displayChimeList();
+  return;
+
+  if(Serial) Serial.println("Displaying chime menu");
+
+  int top = 0;
+  int prevEncoderPostition = 0;
+  
+  timeSinceLastAction = millis();
+  rotaryEncoder.setBoundaries(0, numFileTitles, false);
+  rotaryEncoder.setEncoderValue(0);
+  displayChime(false, top);
+  displayMenuSelectionIndicator(0);
+
+  while(true) {
+
+    if(checkScreenTimeout()) return;
+    manageLoop();
+
+    if(rotaryEncoder.encoderChanged()) {
+      timeSinceLastAction = millis();
+      int val = rotaryEncoder.readEncoder();
+      //stopTrack();
+      playTrack(val+1); // TODO: add 3 second timer before it starts playing
+      if(val == top && top != 0 && val < prevEncoderPostition) {
+        prevEncoderPostition = val;
+        // TODO: should increade by possibly more then once because the library (but make sure it doesn't overstep)
+        top--;
+        displayChime(true, top);
+        displayMenuSelectionIndicator(0);
+      } else
+      if(val == top+4 && top != numFileTitles && val > prevEncoderPostition) {
+        prevEncoderPostition = val;
+        top++;
+        displayChime(true, top);
+        displayMenuSelectionIndicator(3);
+      } else {
+        displayMenuSelectionIndicator(val - top);
+      }
+    }
+    
+    if(rotaryEncoder.isEncoderButtonClicked()) {
+      int val = rotaryEncoder.readEncoder();
+      if(val < 0 || val > numFileTitles-1) break;
+      Serial.print("New chime is: ");
+      Serial.println(fileTitles[val]);
+      currentAlarm.ap.track = val;
+      screen = alarm_setting_scr;
+      stopTrack();
+      return;
+    }
+
+  }
+}
+// TODO: start list at position of current chime
+
+
+void displayChime(bool partial, int top) {
+
+  if(partial) display.setPartialWindow(0, 24, display.width(), display.height()-24);
+  else display.setFullWindow();
+
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+
+    if(!partial) displayTitle("Chimes");
+
+    int row = 0;
+    for(int i = top; i < top+4; i++) {
+      if(i > numFileTitles) Serial.print("Out of bounds");
+      int lineHeight = 22*(row+2);
+      display.setCursor(30, lineHeight);
+      display.print(fileTitles[i]);
+      row++;
+    }
+
+  }
+  while (display.nextPage());
+}
+
+/* =============== CHIME SELECTION V2 ================== */
+
+void printLineChime(const int x, const int y, const int row) {
+    if(row < 0 || row > numFileTitles-1) return;
+    display.setCursor(x, y);
+    display.print(fileTitles[row]);
+}
+
+bool rowActionChime(const int row) {
+    if(row < 0 || row > numFileTitles-1) return false;
+      Serial.print("New chime is: ");
+      Serial.println(fileTitles[row]);
+      currentSelectedAlarm->ap.track = row;
+      screen = alarm_setting_scr;
+      stopTrack();
+      return true;
+}
+
+void hoverChime(const int row) {
+    playTrack(row+1);
+}
+
+void displayChimeList() {
+    Serial.println("Entering list loop");
+    listLoop("Chime", numFileTitles, 0, &printLineChime, &rowActionChime, &hoverChime);
+}
+
+void listLoop(const char* title, const int length, int top, void (*printLine)(int,int,int), bool (*clickAction)(int), void (*onHover)(int)) {
+
+  int prevEncoderPostition = 0;
+  //const int numLines = 4;
+  
+  timeSinceLastAction = millis();
+  rotaryEncoder.setBoundaries(0, length, false);
+  rotaryEncoder.setEncoderValue(top);
+  displayList(false, top, title, printLine);
+  displayMenuSelectionIndicator(0);
+
+  while(true) {
+
+    if(checkScreenTimeout()) return;
+    manageLoop();
+
+    if(rotaryEncoder.encoderChanged()) {
+        timeSinceLastAction = millis();
+        int val = rotaryEncoder.readEncoder();
+        onHover(val);
+        if(val == top && top != 0 && val < prevEncoderPostition) {
+            prevEncoderPostition = val;
+            // TODO: should increade by possibly more then once because the library (but make sure it doesn't overstep)
+            top--;
+            displayList(true, top, title, printLine);
+            displayMenuSelectionIndicator(0);
+        } else
+        if(val == top+4 && top != length && val > prevEncoderPostition) {
+            prevEncoderPostition = val;
+            top++;
+            displayList(true, top, title, printLine);
+            displayMenuSelectionIndicator(3);
+        } else {
+            displayMenuSelectionIndicator(val - top);
+        }
+    }
+    
+    if(rotaryEncoder.isEncoderButtonClicked()) {
+      if(clickAction(rotaryEncoder.readEncoder())) return;
+    }
+
+  }
+}
+
+void displayList(bool partial, int top, const char* title, void (*printLine)(int,int,int)) {
+
+  if(partial) display.setPartialWindow(0, 0, display.width(), display.height());
+  else display.setFullWindow();
+
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+
+    displayTitle(title);
+
+    const int lineHeight = 22;
+    const int horizontalOffset = 30;
+    const int numLines = 4;
+
+    int row = 0;
+    for(int i = top; i < top+numLines; i++) {
+      int verticalOffset = lineHeight*(row+2);
+      printLine(horizontalOffset, verticalOffset, i);
+      row++;
+    }
+
+  }
+  while (display.nextPage());
 }

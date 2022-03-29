@@ -11,12 +11,12 @@ TODO: manage collisions if two alarms playing at the same time
 */
 
 // Each soundbyte should be 1 minute long and ramp from 0 to 15 volume in 10 seconds
-const char *fileTitles[4] = {
+/*const char *fileTitles[4] = {
   "Star Wars",
   "Indiana Jones",
   "Tintin",
   "The Cowboys"
-};
+};*/
 
 int alarmTimeout = 60000;
 int snoozeTime = 600000;
@@ -133,6 +133,35 @@ void setupDFPlayer(int alarmTimeout, int snoozeTime) {
         Serial.println(count);
         Serial.println("starting...");
     }
+}
+
+// TODO: need two variables, one for alarm and one for regular music
+// TODO: need to check for bounds
+/*void playTrack(int track) {
+  if(!alarmIsPlaying) {
+    Serial.print("playing track: ");
+    Serial.println(track);
+    alarmIsPlaying = true;
+    dfmp3.setVolume(10);
+    dfmp3.playMp3FolderTrack(track);
+    dfmp3.setRepeatPlayCurrentTrack(true);
+  }
+}*/
+
+void playTrack(int track) {
+  Serial.print("playing track: ");
+  Serial.println(track);
+  dfmp3.setVolume(10);
+  dfmp3.playMp3FolderTrack(track);
+  dfmp3.playMp3FolderTrack(track);
+  dfmp3.setRepeatPlayCurrentTrack(true);
+}
+
+void stopTrack() {
+  if(alarmIsPlaying) {
+    dfmp3.stop();
+    alarmIsPlaying = false;
+  }
 }
 
 void manageDFPlayer() {

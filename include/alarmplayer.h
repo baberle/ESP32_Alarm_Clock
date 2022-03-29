@@ -6,6 +6,8 @@
 
 void setupDFPlayer(int alarmTimeout = 60000, int snoozeTime = 600000);
 void manageDFPlayer();
+void playTrack(int track);
+void stopTrack();
 
 struct AlarmPlayer {
   int track;

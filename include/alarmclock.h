@@ -65,5 +65,18 @@ void displayTimezones(bool partial, int top);
 void mainSettingsLoop();
 void displayMainSettings(bool partial);
 
+void alarmSettingsLoop(Alarm& currentAlarm);
+void displayAlarmSettings(bool partial, bool alarmStatus, bool snoozeStatus);
+
+void chimeLoop(Alarm& currentAlarm);
+void displayChime(bool partial, int top);
+
+void printLineChime(const int x, const int y, const int row);
+bool rowActionChime(const int row);
+void hoverChime(const int row);
+void displayChimeList();
+
+void listLoop(const char* listTitle, const int length, int top, void (*printLine)(int,int,int), bool (*clickAction)(int), void (*onHover)(int));
+void displayList(bool partial, int top, const char* title, void (*printLine)(int,int,int));
 
 #endif

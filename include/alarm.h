@@ -9,6 +9,7 @@ struct Alarm
     int minute;
     bool day[7];
     bool active;
+    bool snooze;
     AlarmPlayer ap;
     Alarm();
     void checkAlarm(tm &timeinfo);

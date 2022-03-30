@@ -246,16 +246,18 @@ void loop()
       mainMenuLoop();
       break;
     case alarms_scr:
-      alarmsLoop();
+      //alarmsLoop();
+      displayAlarmsList();
       break;
     case alarm_setting_scr:
       alarmSettingsLoop(*currentSelectedAlarm);
       break;
     case chime_setting_scr:
-      chimeLoop(*currentSelectedAlarm);
+      displayChimeList();
       break;
     case timezone_scr:
-      timezoneLoop();
+      displayTimezoneList();
+      //timezoneLoop();
       break;
     case settings_scr:
       mainSettingsLoop();
@@ -560,218 +562,94 @@ void displayMenuSelectionIndicator(int selection) {
 
 /* =========================== DISPLAY ALARMS =========================== */
 
-
-void alarmsLoop() {
-
-  if(Serial) Serial.println("Displaying alarms menu");
-
-  int top = 0;
-  int prevEncoderPostition = 0; // Probably already have this somewhere
-
-  //Serial.println(getNextAlarm());
-  
-  timeSinceLastAction = millis();
-  rotaryEncoder.setBoundaries(0, alarmset.numSetAlarms+2, false);
-  rotaryEncoder.setEncoderValue(0);
-  displayAlarms(false, top);
-  displayMenuSelectionIndicator(0);
-
-  while(true) {
-
-    if(rotaryEncoder.encoderChanged()) {
-      timeSinceLastAction = millis();
-      int val = rotaryEncoder.readEncoder();
-      Serial.print("Top: ");
-      Serial.print(top);
-      Serial.print(" Val: ");
-      Serial.println(val);
-      if(val == top && top != 0 && val < prevEncoderPostition) {
-        prevEncoderPostition = val;
-        top--;
-        displayAlarms(true, top);
-        displayMenuSelectionIndicator(0);
-      } else
-      if(val == top+4 && top != alarmset.numSetAlarms-2 && val > prevEncoderPostition) {
-        prevEncoderPostition = val;
-        top++;
-        displayAlarms(true, top);
-        displayMenuSelectionIndicator(3);
-      } else {
-        displayMenuSelectionIndicator(val - top);
-      }
-    }
-    if(checkScreenTimeout()) return;
-    
-    if(rotaryEncoder.isEncoderButtonClicked()) {
-      int val = rotaryEncoder.readEncoder();
-      if(val < alarmset.numSetAlarms) {
-        // go to alarm setsing screen for alarm # val
-        Serial.println("Go into alarm");
-        currentSelectedAlarm = &alarmset.alarms[val];
-        screen = alarm_setting_scr;
-        return;
-      } else 
-      if(val == alarmset.numSetAlarms) {
-        // Add new alarm logic
-        // go to alarm setting screen if room for another alarm
-        Serial.println("Making new alarm");
-        alarmset.addAlarm();
-      } else 
-      if(val == alarmset.numSetAlarms+1) {
-        screen = main_menu_scr;
-        return;
-      }
-    }
-  }
-}
-
-
-void displayAlarmLine(Alarm& alarm, int lineNum) {
-
-  int lineHeight = 22*(lineNum+2);
-
+void displayAlarmLine(Alarm& alarm, const int x, const int y) {
+  // TODO: not everything in terms of x
   char timeString[10];
   alarm.toString(militaryTime, timeString);
-  display.setCursor(30, lineHeight);
+  display.setCursor(x, y);
   display.print(timeString);
 
-  display.drawLine(130, lineHeight, 130, lineHeight-22, GxEPD_BLACK);
+  display.drawLine(130, y, 130, y-22, GxEPD_BLACK);
 
   char dayString[10];
   alarm.toDayString(dayString);
   int16_t tbx, tby; uint16_t tbw, tbh;
   display.getTextBounds(dayString, 0, 0, &tbx, &tby, &tbw, &tbh);
-  uint16_t x = ((120 - tbw) / 2) - tbx;
-  display.setCursor(130+x, lineHeight);
+  uint16_t x1 = ((120 - tbw) / 2) - tbx;
+  display.setCursor(130+x1, y);
   display.print(dayString);
 
-  display.drawLine(250, lineHeight, 250, lineHeight-22, GxEPD_BLACK);
+  display.drawLine(250, y, 250, y-22, GxEPD_BLACK);
 
-  display.setCursor(260, lineHeight);
+  display.setCursor(260, y);
   display.print(alarm.active ? "ON" : "OFF");
 }
 
-// TODO: add partial refresh option
-void displayAlarms(bool partial, int topA) {
-
-  if(!partial) display.setFullWindow();
-  else display.setPartialWindow(0, 24, display.width(), display.height()-22);
-  display.firstPage();
-  do
-  {
-    display.fillScreen(GxEPD_WHITE);
-
-    if(!partial) displayTitle("Alarms");
-
-    int row = 0;
-    for(int i = topA; i < topA+4; i++) {
-      if(i < alarmset.numSetAlarms) {
-        displayAlarmLine(alarmset.alarms[i], row);
-      } else {
-        if(i == alarmset.numSetAlarms) {
-          int lineHeight = 22*(row+1);
-          display.drawBitmap(30, lineHeight+8, plus_outline, 18, 18, GxEPD_BLACK);
-          display.setCursor(30+18+4, lineHeight+22);
-          display.print("New Alarm");
-        } else 
-        if(i == alarmset.numSetAlarms+1) {
-          display.setCursor(30, 22*5);
-          display.print("Exit");
-        }
+void printLineAlarms(const int x, const int y, const int row) {
+  if(row < alarmset.numSetAlarms) {
+      displayAlarmLine(alarmset.alarms[row], x, y);
+    } else {
+      if(row == alarmset.numSetAlarms) {
+        display.drawBitmap(x, y+8, plus_outline, 18, 18, GxEPD_BLACK);
+        display.setCursor(x+18+4, y+22);
+        display.print("New Alarm");
+      } else 
+      if(row == alarmset.numSetAlarms+1) {
+        display.setCursor(x, 22*5); // should by y I think
+        display.print("Exit");
       }
-      row++;
     }
-
-  }
-  while (display.nextPage());
 }
 
+bool rowActionAlarms(const int row) {
+  if(row < alarmset.numSetAlarms) {
+    // go to alarm setsing screen for alarm # row
+    Serial.println("Go into alarm");
+    currentSelectedAlarm = &alarmset.alarms[row];
+    screen = alarm_setting_scr;
+    return true;
+  } else 
+  if(row == alarmset.numSetAlarms) {
+    // Add new alarm logic
+    // TODO: go to alarm setting screen if room for another alarm
+    Serial.println("Making new alarm");
+    alarmset.addAlarm();
+  } else 
+  if(row == alarmset.numSetAlarms+1) {
+    screen = main_menu_scr;
+    return true;
+  }
+  return false;
+}
 
+void displayAlarmsList() {
+    Serial.println("Entering Alarms List Screen");
+    listLoop("Alarms", alarmset.numSetAlarms+2, 0, &printLineAlarms, &rowActionAlarms, NULL);
+}
 
 /* =========================== CHOOSE TIMEZONES =========================== */
 
-
-
-void timezoneLoop() {
-
-  if(Serial) Serial.println("Displaying timezone menu");
-
-  int top = 24;
-  int prevEncoderPostition = 24;
-  
-  timeSinceLastAction = millis();
-  rotaryEncoder.setBoundaries(0, 30, false);
-  rotaryEncoder.setEncoderValue(24);
-  displayTimezones(false, top);
-  displayMenuSelectionIndicator(0);
-
-  while(true) {
-
-    if(checkScreenTimeout()) return;
-    manageLoop();
-
-    if(rotaryEncoder.encoderChanged()) {
-      timeSinceLastAction = millis();
-      int val = rotaryEncoder.readEncoder();
-      if(val == top && top != 0 && val < prevEncoderPostition) {
-        prevEncoderPostition = val;
-        // TODO: should increade by possibly more then once because the library (but make sure it doesn't overstep)
-        top--;
-        displayTimezones(true, top);
-        displayMenuSelectionIndicator(0);
-      } else
-      if(val == top+4 && top != 30 && val > prevEncoderPostition) {
-        prevEncoderPostition = val;
-        top++;
-        displayTimezones(true, top);
-        displayMenuSelectionIndicator(3);
-      } else {
-        displayMenuSelectionIndicator(val - top);
-      }
-    }
-    
-    if(rotaryEncoder.isEncoderButtonClicked()) {
-      int val = rotaryEncoder.readEncoder();
-      // TODO: change timezone offset (with correct offset for daylight savings time)
-      if(val < 0 || val > 30) break;
-      Serial.print("New offset is: ");
-      Serial.println(timeZoneOffset[val]);
-      configTime(timeZoneOffset[val], daylightOffset_sec, ntpServer);
-      screen = settings_scr;
-      return;
-    }
-
-  }
+void printLineTimezone(const int x, const int y, const int row) {
+    if(row > 30) return;
+    display.setCursor(x, y);
+    display.print(timeZoneDescription[row]);
 }
 
-
-void displayTimezones(bool partial, int topA) {
-
-  if(partial) display.setPartialWindow(0, 24, display.width(), display.height()-22);
-  else display.setFullWindow();
-
-  display.firstPage();
-  do
-  {
-    display.fillScreen(GxEPD_WHITE);
-
-    if(!partial) displayTitle("Alarms");
-
-    int row = 0;
-    for(int i = topA; i < topA+4; i++) {
-      // TODO: I think I should be able to fit 5 in here
-      // TODO: add "time" after every zone name
-      if(i > 30) Serial.print("Out of bounds");
-      int lineHeight = 22*(row+2);
-      display.setCursor(30, lineHeight);
-      display.print(timeZoneDescription[i]);
-      row++;
-    }
-
-  }
-  while (display.nextPage());
+bool rowActionTimezone(const int row) {
+  // TODO: change timezone offset (with correct offset for daylight savings time)
+  if(row < 0 || row > 30) return false;
+  Serial.print("New offset is: ");
+  Serial.println(timeZoneOffset[row]);
+  configTime(timeZoneOffset[row], daylightOffset_sec, ntpServer);
+  screen = settings_scr;
+  return true;
 }
 
+void displayTimezoneList() {
+    Serial.println("Entering Timezone List Screen");
+    listLoop("Timezones", 30, 24, &printLineTimezone, &rowActionTimezone, NULL);
+    // TODO: Is this the correct number of timezones?
+}
 
 /* =========================== MAIN SETTIGNS SCREEN =========================== */
 
@@ -929,92 +807,6 @@ void displayAlarmSettings(bool partial, bool alarmStatus, bool snoozeStatus) {
 
 /* =========================== CHIME SELECTION =========================== */
 
-void chimeLoop(Alarm& currentAlarm) {
-
-  displayChimeList();
-  return;
-
-  if(Serial) Serial.println("Displaying chime menu");
-
-  int top = 0;
-  int prevEncoderPostition = 0;
-  
-  timeSinceLastAction = millis();
-  rotaryEncoder.setBoundaries(0, numFileTitles, false);
-  rotaryEncoder.setEncoderValue(0);
-  displayChime(false, top);
-  displayMenuSelectionIndicator(0);
-
-  while(true) {
-
-    if(checkScreenTimeout()) return;
-    manageLoop();
-
-    if(rotaryEncoder.encoderChanged()) {
-      timeSinceLastAction = millis();
-      int val = rotaryEncoder.readEncoder();
-      //stopTrack();
-      playTrack(val+1); // TODO: add 3 second timer before it starts playing
-      if(val == top && top != 0 && val < prevEncoderPostition) {
-        prevEncoderPostition = val;
-        // TODO: should increade by possibly more then once because the library (but make sure it doesn't overstep)
-        top--;
-        displayChime(true, top);
-        displayMenuSelectionIndicator(0);
-      } else
-      if(val == top+4 && top != numFileTitles && val > prevEncoderPostition) {
-        prevEncoderPostition = val;
-        top++;
-        displayChime(true, top);
-        displayMenuSelectionIndicator(3);
-      } else {
-        displayMenuSelectionIndicator(val - top);
-      }
-    }
-    
-    if(rotaryEncoder.isEncoderButtonClicked()) {
-      int val = rotaryEncoder.readEncoder();
-      if(val < 0 || val > numFileTitles-1) break;
-      Serial.print("New chime is: ");
-      Serial.println(fileTitles[val]);
-      currentAlarm.ap.track = val;
-      screen = alarm_setting_scr;
-      stopTrack();
-      return;
-    }
-
-  }
-}
-// TODO: start list at position of current chime
-
-
-void displayChime(bool partial, int top) {
-
-  if(partial) display.setPartialWindow(0, 24, display.width(), display.height()-24);
-  else display.setFullWindow();
-
-  display.firstPage();
-  do
-  {
-    display.fillScreen(GxEPD_WHITE);
-
-    if(!partial) displayTitle("Chimes");
-
-    int row = 0;
-    for(int i = top; i < top+4; i++) {
-      if(i > numFileTitles) Serial.print("Out of bounds");
-      int lineHeight = 22*(row+2);
-      display.setCursor(30, lineHeight);
-      display.print(fileTitles[i]);
-      row++;
-    }
-
-  }
-  while (display.nextPage());
-}
-
-/* =============== CHIME SELECTION V2 ================== */
-
 void printLineChime(const int x, const int y, const int row) {
     if(row < 0 || row > numFileTitles-1) return;
     display.setCursor(x, y);
@@ -1036,9 +828,11 @@ void hoverChime(const int row) {
 }
 
 void displayChimeList() {
-    Serial.println("Entering list loop");
+    Serial.println("Entering Chime List Screen");
     listLoop("Chime", numFileTitles, 0, &printLineChime, &rowActionChime, &hoverChime);
 }
+
+/* =========================== LIST DISPLAY =========================== */
 
 void listLoop(const char* title, const int length, int top, void (*printLine)(int,int,int), bool (*clickAction)(int), void (*onHover)(int)) {
 
@@ -1059,7 +853,7 @@ void listLoop(const char* title, const int length, int top, void (*printLine)(in
     if(rotaryEncoder.encoderChanged()) {
         timeSinceLastAction = millis();
         int val = rotaryEncoder.readEncoder();
-        onHover(val);
+        if(onHover != NULL) onHover(val);
         if(val == top && top != 0 && val < prevEncoderPostition) {
             prevEncoderPostition = val;
             // TODO: should increade by possibly more then once because the library (but make sure it doesn't overstep)

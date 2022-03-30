@@ -56,20 +56,19 @@ void displayTitle();
 void displayMainMenu();
 void displayMenuSelectionIndicator(int selection);
 
-void alarmsLoop();
-void displayAlarms(bool partial, int top);
-
-void timezoneLoop();
-void displayTimezones(bool partial, int top);
-
 void mainSettingsLoop();
 void displayMainSettings(bool partial);
 
 void alarmSettingsLoop(Alarm& currentAlarm);
 void displayAlarmSettings(bool partial, bool alarmStatus, bool snoozeStatus);
 
-void chimeLoop(Alarm& currentAlarm);
-void displayChime(bool partial, int top);
+void printLineAlarms(const int x, const int y, const int row);
+bool rowActionAlarms(const int row);
+void displayAlarmsList();
+
+void printLineTimezone(const int x, const int y, const int row);
+bool rowActionTimezone(const int row);
+void displayTimezoneList();
 
 void printLineChime(const int x, const int y, const int row);
 bool rowActionChime(const int row);

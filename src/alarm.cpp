@@ -102,11 +102,6 @@ void Alarm::toString(bool militaryTime, char* timeString) {
 
   timeString[8] = '\0';
 
-  /*if(Serial) {
-    Serial.print("Alarm time to string: ");
-    Serial.println(timeString);
-  }*/
-
 }
 
 void Alarm::toDayString(char* dayString) {

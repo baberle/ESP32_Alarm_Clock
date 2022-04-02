@@ -64,7 +64,7 @@ void displayAlarmSettings(bool partial, bool alarmStatus, bool snoozeStatus);
 
 void alarmSettings2Loop(Alarm& currentAlarm);
 void displayAlarmSettings2(bool partial, Alarm& currentAlarm, const int selection, const bool timeChange);
-void displayAlarmTime(const int hour, const int minute, const bool active, const bool focus);
+void displayAlarmTime(Alarm& currentAlarm, const bool active, const bool focus);
 void displayDayIcon(bool selected, bool active, int wday);
 
 void printLineAlarms(const int x, const int y, const int row);

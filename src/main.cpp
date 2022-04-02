@@ -133,12 +133,33 @@ const char *fileTitles[14] = {
 };
 const int numFileTitles = 14;
 
+unsigned long touchDelay = 0;
+//bool alarmIsPlaying = false;
+bool hold = false;
+
 void hitSnooze() {
   touchDetected = true;
   Serial.println("Touch detected");
   //startLedMomentary();
   backlight.startMomentary();
 }
+
+/*void hitSnooze() {
+  if(alarmIsPlaying && !alarmSnoozed) {
+    if(!hold) {
+      touchDelay = millis();
+      hold = true;
+    } else {
+      const int holdTime = 3000;
+      if(millis() - touchDelay > holdTime) {
+        hold = false;
+        alarm.snooze();
+      }
+    }
+  } else {
+    backlight.startMomentary();
+  }
+}*/
 
 void IRAM_ATTR readEncoderISR()
 {
@@ -164,16 +185,11 @@ void setup() {
   stopTrack();
 
   testSetup();
-  //al.active = true;
-  //al.hour = 18;
-  //al.minute = 58;
-  //al.ap.startAlarmPlayer();
-  //alarmset.alarms[0].ap.startAlarmPlayer();
 
   rotaryEncoder.begin();
   rotaryEncoder.setup(readEncoderISR);
   rotaryEncoder.setBoundaries(0, 1000, false); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
-  rotaryEncoder.setAcceleration(250); 
+  rotaryEncoder.setAcceleration(100); 
 
   touchAttachInterrupt(TOUCH, hitSnooze, threshold);
 }
@@ -277,7 +293,6 @@ void manageLoop() {
   }
   //al.checkAlarm(timeinfo);
   alarmset.checkAllAlarms(timeinfo);
-  //manageLED();
   backlight.manageBacklight();
 }
 
@@ -592,12 +607,12 @@ void printLineAlarms(const int x, const int y, const int row) {
       displayAlarmLine(alarmset.alarms[row], x, y);
     } else {
       if(row == alarmset.numSetAlarms) {
-        display.drawBitmap(x, y+8, plus_outline, 18, 18, GxEPD_BLACK);
-        display.setCursor(x+18+4, y+22);
+        display.drawBitmap(x, y-14, plus_outline, 18, 18, GxEPD_BLACK);
+        display.setCursor(x+18+4, y);
         display.print("New Alarm");
       } else 
       if(row == alarmset.numSetAlarms+1) {
-        display.setCursor(x, 22*5); // should by y I think
+        display.setCursor(x, y);
         display.print("Exit");
       }
     }
@@ -626,7 +641,8 @@ bool rowActionAlarms(const int row) {
 
 void displayAlarmsList() {
     Serial.println("Entering Alarms List Screen");
-    listLoop("Alarms", alarmset.numSetAlarms+2, 0, &printLineAlarms, &rowActionAlarms, NULL);
+    Serial.print("Num alarms is ");Serial.println(alarmset.numSetAlarms);
+    listLoop("Alarms", alarmset.numSetAlarms+1, 0, &printLineAlarms, &rowActionAlarms, NULL);
 }
 
 /* =========================== CHOOSE TIMEZONES =========================== */
@@ -827,7 +843,6 @@ void alarmSettings2Loop(Alarm& currentAlarm) {
   timeSinceLastAction = millis();
 
   int selection = 0;
-  //int prevValue = currentAlarm.minute;
   bool changeTime = false;
 
   while(true) {
@@ -838,6 +853,7 @@ void alarmSettings2Loop(Alarm& currentAlarm) {
     if(rotaryEncoder.encoderChanged()) {
       timeSinceLastAction = millis();
       if(changeTime) {
+        // TODO: bug on top boundary
         currentAlarm.setTime(rotaryEncoder.readEncoder()*5);
         displayAlarmSettings2(true, currentAlarm, 0, true);
       } else {
@@ -851,7 +867,7 @@ void alarmSettings2Loop(Alarm& currentAlarm) {
       switch((changeTime ? 0 : val)) {
         case 0:
           if(!changeTime) {
-            rotaryEncoder.setBoundaries(0, 288, true);
+            rotaryEncoder.setBoundaries(0, 287, true);
             rotaryEncoder.setEncoderValue(12*currentAlarm.hour + currentAlarm.minute/5);
             changeTime = true;
           } else {
@@ -886,8 +902,6 @@ void displayAlarmSettings2(bool partial, Alarm& currentAlarm, const int selectio
 
   if(partial) display.setPartialWindow(0, 0, display.width(), display.height());
   else display.setFullWindow();
-
-  Serial.println("Updaing screen");
   
   display.firstPage();
   do
@@ -896,8 +910,8 @@ void displayAlarmSettings2(bool partial, Alarm& currentAlarm, const int selectio
     
     displayTitle("Alarm Settings");
     
-    if(selection == 0) displayAlarmTime(currentAlarm.hour, currentAlarm.minute, true, timeChange);
-    else displayAlarmTime(currentAlarm.hour, currentAlarm.minute, false, timeChange);
+    if(selection == 0) displayAlarmTime(currentAlarm, true, timeChange);
+    else displayAlarmTime(currentAlarm, false, timeChange);
 
     for(int wday = 0; wday < 7; wday++) {
       if(selection == wday+1) displayDayIcon(true, currentAlarm.day[wday], wday);
@@ -907,31 +921,27 @@ void displayAlarmSettings2(bool partial, Alarm& currentAlarm, const int selectio
     display.setTextColor(GxEPD_BLACK);
     display.print("Exit");
     display.setCursor(120,120);
-    if(selection == 8) display.print("*");
+    if(selection == 8) display.fillCircle(120, 115, 3, GxEPD_BLACK);
   }
   while (display.nextPage());
 }
 
-// TODO: need to incorporate 24 hour time
-void displayAlarmTime(const int hour, const int minute, const bool active, const bool focus) {
+// TODO account for 12-hour time where first digit not displayed
+void displayAlarmTime(Alarm& currentAlarm, const bool active, const bool focus) {
+
   display.setCursor(115, 55);
   display.setTextColor(GxEPD_BLACK);
-  char alarmTime[] = "12:00 PM";
-  alarmTime[0] = (hour / 10) % 10 + '0';
-  alarmTime[1] = hour % 10 + '0';
-  alarmTime[3] = (minute / 10) % 10 + '0';
-  alarmTime[4] = minute % 10 + '0';
-  if(hour > 12) {
-    alarmTime[6] = 'A';
-  } else {
-    alarmTime[6] = 'P';
-  }
+
+  char alarmTime[10];
+  currentAlarm.toString(militaryTime, alarmTime);
   display.print(alarmTime);
+
+  int width = (militaryTime ? 60 : 90);
   if(active) {
-    display.fillRect(115/*x*/, 60/*y*/, 100/*width*/, 2/*height*/, GxEPD_BLACK);
+    display.fillRect(115, 60/*y*/, width, 2/*height*/, GxEPD_BLACK);
   }
   if(focus) {
-    display.fillRect(115/*x*/, 64/*y*/, 100/*width*/, 2/*height*/, GxEPD_BLACK);
+    display.fillRect(115, 64/*y*/, width, 2/*height*/, GxEPD_BLACK);
   }
 }
 

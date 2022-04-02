@@ -59,6 +59,11 @@ void Alarm::decreaseTime(int amt) {
   }
 }
 
+void Alarm::setTime(int amt) {
+  hour = amt / 60;
+  minute = amt % 60;
+}
+
 // TODO: ensure it works for edge cases
 void Alarm::toString(bool militaryTime, char* timeString) {
 

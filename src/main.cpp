@@ -9,6 +9,7 @@ enum Screen {
   main_menu_scr, 
   alarms_scr, 
   alarm_setting_scr,
+  alarm_setting2_scr,
   chime_setting_scr,
   timezone_scr, 
   settings_scr
@@ -213,7 +214,7 @@ void testSetup() {
 
   alarmset.alarms[0].active = true;
   alarmset.alarms[0].hour = 19;
-  alarmset.alarms[0].minute = 31;
+  alarmset.alarms[0].minute = 40;
   alarmset.alarms[0].day[1] = false;
   alarmset.alarms[0].day[2] = false;
 
@@ -246,18 +247,19 @@ void loop()
       mainMenuLoop();
       break;
     case alarms_scr:
-      //alarmsLoop();
       displayAlarmsList();
       break;
     case alarm_setting_scr:
       alarmSettingsLoop(*currentSelectedAlarm);
+      break;
+    case alarm_setting2_scr:
+      alarmSettings2Loop(*currentSelectedAlarm);
       break;
     case chime_setting_scr:
       displayChimeList();
       break;
     case timezone_scr:
       displayTimezoneList();
-      //timezoneLoop();
       break;
     case settings_scr:
       mainSettingsLoop();
@@ -683,6 +685,9 @@ void mainSettingsLoop() {
           screen = timezone_scr;
           return;
         case 2:
+          if(backlight.getState()) backlight.turnOff();
+          else backlight.turnOff();
+          displayMainSettings(true);
           break;
         case 3:
           screen = main_menu_scr;
@@ -716,7 +721,11 @@ void displayMainSettings(bool partial) {
     display.print("Change Timezone");
     
     display.setCursor(30, 22*4);
-    display.print("Night Light");
+    if(backlight.getState()) {
+      display.print("Night Light: ON");
+    } else {
+      display.print("Night Light: OFF");
+    } 
     
     display.setCursor(30, 22*5);
     display.print("Exit");
@@ -756,12 +765,12 @@ void alarmSettingsLoop(Alarm& currentAlarm) {
         case 1:
           currentAlarm.snooze = !currentAlarm.snooze;
           displayAlarmSettings(true, currentAlarm.active, currentAlarm.snooze);
-          return;
+          break;
         case 2:
           screen = chime_setting_scr;
           return;
         case 3:
-          screen = main_menu_scr;
+          screen = alarm_setting2_scr;
           return;
       }
     }
@@ -804,6 +813,144 @@ void displayAlarmSettings(bool partial, bool alarmStatus, bool snoozeStatus) {
 
   displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
 }
+
+
+/* =========================== ALARM SETTIGNS 2 =========================== */
+
+void alarmSettings2Loop(Alarm& currentAlarm) {
+
+  if(Serial) Serial.println("Displaying alarm settings 2 menu");
+
+  rotaryEncoder.setBoundaries(0, 8, false);
+  rotaryEncoder.setEncoderValue(0);
+  displayAlarmSettings2(false, currentAlarm, 0, false);
+  timeSinceLastAction = millis();
+
+  int selection = 0;
+  //int prevValue = currentAlarm.minute;
+  bool changeTime = false;
+
+  while(true) {
+
+    if(checkScreenTimeout()) return;
+    manageLoop();
+
+    if(rotaryEncoder.encoderChanged()) {
+      timeSinceLastAction = millis();
+      if(changeTime) {
+        currentAlarm.setTime(rotaryEncoder.readEncoder()*5);
+        displayAlarmSettings2(true, currentAlarm, 0, true);
+      } else {
+        selection = rotaryEncoder.readEncoder();
+        displayAlarmSettings2(true, currentAlarm, selection, false);
+      }
+    }
+    
+    if(rotaryEncoder.isEncoderButtonClicked()) {
+      int val = rotaryEncoder.readEncoder();
+      switch((changeTime ? 0 : val)) {
+        case 0:
+          if(!changeTime) {
+            rotaryEncoder.setBoundaries(0, 288, true);
+            rotaryEncoder.setEncoderValue(12*currentAlarm.hour + currentAlarm.minute/5);
+            changeTime = true;
+          } else {
+            rotaryEncoder.setBoundaries(0, 8, false);
+            rotaryEncoder.setEncoderValue(0);
+            selection = 0;
+            changeTime = false;
+          }
+          displayAlarmSettings2(true, currentAlarm, selection, changeTime);
+          break;
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+          currentAlarm.day[val-1] = !currentAlarm.day[val-1];
+          displayAlarmSettings2(true, currentAlarm, selection, false);
+          break;
+        case 8:
+          screen = main_menu_scr;
+          return;
+        default: break;
+      }
+    }
+  }
+}
+
+
+void displayAlarmSettings2(bool partial, Alarm& currentAlarm, const int selection, const bool timeChange) {
+
+  if(partial) display.setPartialWindow(0, 0, display.width(), display.height());
+  else display.setFullWindow();
+
+  Serial.println("Updaing screen");
+  
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    
+    displayTitle("Alarm Settings");
+    
+    if(selection == 0) displayAlarmTime(currentAlarm.hour, currentAlarm.minute, true, timeChange);
+    else displayAlarmTime(currentAlarm.hour, currentAlarm.minute, false, timeChange);
+
+    for(int wday = 0; wday < 7; wday++) {
+      if(selection == wday+1) displayDayIcon(true, currentAlarm.day[wday], wday);
+      else displayDayIcon(false, currentAlarm.day[wday], wday);
+    }
+    display.setCursor(130,120);
+    display.setTextColor(GxEPD_BLACK);
+    display.print("Exit");
+    display.setCursor(120,120);
+    if(selection == 8) display.print("*");
+  }
+  while (display.nextPage());
+}
+
+// TODO: need to incorporate 24 hour time
+void displayAlarmTime(const int hour, const int minute, const bool active, const bool focus) {
+  display.setCursor(115, 55);
+  display.setTextColor(GxEPD_BLACK);
+  char alarmTime[] = "12:00 PM";
+  alarmTime[0] = (hour / 10) % 10 + '0';
+  alarmTime[1] = hour % 10 + '0';
+  alarmTime[3] = (minute / 10) % 10 + '0';
+  alarmTime[4] = minute % 10 + '0';
+  if(hour > 12) {
+    alarmTime[6] = 'A';
+  } else {
+    alarmTime[6] = 'P';
+  }
+  display.print(alarmTime);
+  if(active) {
+    display.fillRect(115/*x*/, 60/*y*/, 100/*width*/, 2/*height*/, GxEPD_BLACK);
+  }
+  if(focus) {
+    display.fillRect(115/*x*/, 64/*y*/, 100/*width*/, 2/*height*/, GxEPD_BLACK);
+  }
+}
+
+void displayDayIcon(bool selected, bool active, int wday) {
+  const char weekSymbol[7] = {'S','M','T','W','T','F','S'};
+  if(selected) {
+    display.drawCircle(37*(wday+1), 90, 14, GxEPD_BLACK);
+  }
+  if(active) {
+    display.setTextColor(GxEPD_WHITE);
+    display.fillCircle(37*(wday+1), 90, 12, GxEPD_BLACK);
+  } else {
+    display.setTextColor(GxEPD_BLACK);
+    display.fillCircle(37*(wday+1), 90, 12, GxEPD_WHITE);
+  }
+  display.setCursor(37*(wday+1)-5, 90+5);
+  display.print(weekSymbol[wday]);
+}
+
 
 /* =========================== CHIME SELECTION =========================== */
 

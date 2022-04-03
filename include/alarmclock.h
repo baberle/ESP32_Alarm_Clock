@@ -83,4 +83,7 @@ void displayChimeList();
 void listLoop(const char* listTitle, const int length, int top, void (*printLine)(int,int,int), bool (*clickAction)(int), void (*onHover)(int));
 void displayList(bool partial, int top, const char* title, void (*printLine)(int,int,int));
 
+void mathSnoozeLoop(Alarm& currentAlarm);
+void mathSnoozeDisplay(bool partial, const String& equation, const String (&solutions)[3], const int selection);
+
 #endif

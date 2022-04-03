@@ -12,9 +12,11 @@ enum Screen {
   alarm_setting2_scr,
   chime_setting_scr,
   timezone_scr, 
-  settings_scr
+  settings_scr,
+  snooze_math_scr
 };
 Screen screen = clock_scr;
+//Screen screen = snooze_math_scr;
 unsigned long timeSinceLastAction = millis();
 
 AlarmSet alarmset;
@@ -192,6 +194,8 @@ void setup() {
   rotaryEncoder.setAcceleration(100); 
 
   touchAttachInterrupt(TOUCH, hitSnooze, threshold);
+
+  randomSeed(analogRead(39));
 }
 
 
@@ -279,6 +283,10 @@ void loop()
       break;
     case settings_scr:
       mainSettingsLoop();
+      break;
+    case snooze_math_scr:
+      //TODO: 
+      mathSnoozeLoop(*currentSelectedAlarm);
       break;
   } 
 
@@ -1057,6 +1065,115 @@ void displayList(bool partial, int top, const char* title, void (*printLine)(int
       printLine(horizontalOffset, verticalOffset, i);
       row++;
     }
+
+  }
+  while (display.nextPage());
+}
+
+/* =========================== MATH SNOOZE SELECTION =========================== */
+
+void mathSnoozeLoop(Alarm& currentAlarm) {
+
+  if(Serial) Serial.println("Displaying alarm snooze math problem");
+
+  int term1 = random(-100,100);
+  int term2 = random(-100,100);
+  int solution = term1 + term2;
+  int solution2 = term1 + term2 + random(-10,10);
+  int solution3 = term1 + term2 + random(-10,10);
+  String equation(String(term1) + String(" + ") + String(term2) + String(" ="));
+  int correct = 0;
+  String solutions[3];
+  switch(random(0,6)) {
+    case(0):
+      solutions[0] = String(solution); solutions[1] = String(solution2); solutions[2] = String(solution3);
+      correct = 0;
+      break;
+    case(1):
+      solutions[1] = String(solution); solutions[0] = String(solution2); solutions[2] = String(solution3);
+      correct = 1;
+      break;
+    case(2):
+      solutions[2] = String(solution); solutions[1] = String(solution2); solutions[0] = String(solution3);
+      correct = 2;
+      break;
+    case(3):
+      solutions[0] = String(solution); solutions[2] = String(solution2); solutions[1] = String(solution3);
+      correct = 0;
+      break;
+    case(4):
+      solutions[2] = String(solution); solutions[0] = String(solution2); solutions[1] = String(solution3);
+      correct = 2;
+      break;
+    case(5):
+      solutions[1] = String(solution); solutions[2] = String(solution2); solutions[0] = String(solution3);
+      correct = 1;
+      break;
+  }
+
+  rotaryEncoder.setBoundaries(0, 3, false);
+  rotaryEncoder.setEncoderValue(0);
+  mathSnoozeDisplay(false, equation, solutions, 0);
+  timeSinceLastAction = millis();
+
+  while(true) {
+
+    if(checkScreenTimeout()) return;
+    manageLoop();
+
+    if(rotaryEncoder.encoderChanged()) {
+      timeSinceLastAction = millis();
+      mathSnoozeDisplay(true, equation, solutions, rotaryEncoder.readEncoder());
+    }
+    
+    if(rotaryEncoder.isEncoderButtonClicked()) {
+      int val = rotaryEncoder.readEncoder();
+      if(val == correct) {
+        screen = clock_scr;
+        return;
+      }
+    }
+  }
+}
+
+void mathSnoozeDisplay(bool partial, const String& equation, const String (&solutions)[3], const int selection) {
+
+  if(partial) display.setPartialWindow(0, 0, display.width(), display.height());
+  else display.setFullWindow();
+
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  display.getTextBounds(equation, 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t x = ((display.width() - tbw) / 2) - tbx;
+  uint16_t y = ((display.height() - tbh) / 2) - tby - 20;
+
+  display.getTextBounds(solutions[0], 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t x1 = ((display.width()/3 - tbw) / 2) - tbx;
+  uint16_t y1 = ((display.height() - tbh) / 2) - tby + 20;
+
+  display.getTextBounds(solutions[1], 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t x2 = ((display.width()/3 - tbw) / 2) - tbx + display.width()/3;
+
+  display.getTextBounds(solutions[2], 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t x3 = ((display.width()/3 - tbw) / 2) - tbx + 2*display.width()/3;
+
+  int yy = y1 + 3;
+  
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    display.setCursor(x, y);
+    display.print(equation);
+    display.setCursor(x1, y1);
+    display.print(solutions[0]);
+    display.setCursor(x2, y1);
+    display.print(solutions[1]);
+    display.setCursor(x3, y1);
+    display.print(solutions[2]);
+
+    if(selection == 0) display.drawLine(x1,yy,x1+tbw,yy,GxEPD_BLACK);
+    else if (selection == 1) display.drawLine(x2,yy,x2+tbw,yy,GxEPD_BLACK);
+    else display.drawLine(x3,yy,x3+tbw,yy,GxEPD_BLACK);
 
   }
   while (display.nextPage());

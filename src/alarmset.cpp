@@ -72,10 +72,13 @@ int AlarmSet::getNextAlarm() const {
 
 }
 
-void AlarmSet::checkAllAlarms(tm &timeinfo) {
-    // does this work of disabled alarms?
+Alarm* AlarmSet::checkAllAlarms(tm &timeinfo) {
+    // TODO: does this work of disabled alarms?
     for(int i = 0; i < numSetAlarms; i++) {
-        alarms[i].checkAlarm(timeinfo);
+        if(alarms[i].checkAlarm(timeinfo)) {
+          return &alarms[i];
+        }
     }
+    return nullptr;
 }
 

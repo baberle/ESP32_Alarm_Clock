@@ -10,7 +10,7 @@ struct AlarmSet {
   bool addAlarm();
   bool deleteAlarm(int idx);
   int getNextAlarm() const;
-  void checkAllAlarms(tm &timeinfo);
+  Alarm* checkAllAlarms(tm &timeinfo);
 };
 
 #endif

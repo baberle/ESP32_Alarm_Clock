@@ -37,14 +37,17 @@ void AlarmPlayer::startAlarmPlayer() {
   alarmEnabled = true;
   snoozed = false;
   volume = 0;
-  dfmp3.playMp3FolderTrack(track);
-  dfmp3.setRepeatPlayCurrentTrack(true);
   dfmp3.setVolume(0);
+  dfmp3.playMp3FolderTrack(track);
+  dfmp3.playMp3FolderTrack(track); // HACK:
+  dfmp3.setRepeatPlayCurrentTrack(true);
 }
 
 void AlarmPlayer::stopAlarmPlayer() {
+  if(Serial) Serial.println("Stopping alarm player");
   alarmEnabled = false;
   dfmp3.stop();
+  dfmp3.setVolume(0);
 }
 
 void AlarmPlayer::manageAlarmPlayer() {

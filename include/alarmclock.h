@@ -36,7 +36,7 @@ void WiFiConnect();
 
 void testSetup();
 
-void manageLoop();
+bool manageLoop();
 
 void startNightLight();
 void turnOffNightLight();
@@ -60,7 +60,7 @@ void mainSettingsLoop();
 void displayMainSettings(bool partial);
 
 void alarmSettingsLoop(Alarm& currentAlarm);
-void displayAlarmSettings(bool partial, bool alarmStatus, bool snoozeStatus);
+void displayAlarmSettings(bool partial, bool alarmStatus, SnoozeType snoozeStatus);
 
 void alarmSettings2Loop(Alarm& currentAlarm);
 void displayAlarmSettings2(bool partial, Alarm& currentAlarm, const int selection, const bool timeChange);

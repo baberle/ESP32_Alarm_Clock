@@ -5,6 +5,8 @@ Alarm::Alarm() {
     minute = 0;
     for(int i = 0; i < 7; i++) day[i] = true;
     active  = false;
+    snooze = on;
+    alreadyPlayed = false;
     ap.track = 1;
 }
 
@@ -13,59 +15,44 @@ void Alarm::reset() {
   minute = 0;
   for(int i = 0; i < 7; i++) day[i] = true;
   active  = true;
+  snooze = on;
+  alreadyPlayed = false;
   ap.track = 1;
 }
 
 // TODO: this should only go off once a minute even if the person hits snooze before the minute is up (keep snooze value in alarm player)
-void Alarm::checkAlarm(tm &timeinfo) {
-    if(active) {
-        if(!ap.alarmEnabled) {
-            if(day[timeinfo.tm_wday]) {
-                if(timeinfo.tm_hour == hour && timeinfo.tm_min == minute) {
-                    ap.startAlarmPlayer();
-                }
+bool Alarm::checkAlarm(tm &timeinfo) {
+  if(active) {
+    if(alreadyPlayed) {
+      if(timeinfo.tm_min == minute+1) alreadyPlayed = false;
+    } else
+    if(!ap.alarmEnabled) {
+        if(day[timeinfo.tm_wday]) {
+            if(timeinfo.tm_hour == hour && timeinfo.tm_min == minute) {
+                ap.startAlarmPlayer();
+                return true;
+                // TODO: do checking if other alarms are playing here
             }
-        } 
-        else {
-            ap.manageAlarmPlayer();
         }
-    }
+    } 
+    ap.manageAlarmPlayer();
+  }
+  return false;
 } 
 
-void Alarm::increaseTime(int amt) {
-  int timeToNextHour = 60 - minute;
-  if(amt < timeToNextHour) {
-    minute += amt; 
-  } else {
-    if(hour == 24) {
-      hour = 0;
-    } else {
-      hour++;
-    }
-    minute = amt - timeToNextHour;    
-  }
-}
-
-void Alarm::decreaseTime(int amt) {
-  if(amt < minute) {
-    minute -= amt; 
-  } else {
-    if(hour == 0) {
-      hour = 24;
-    } else {
-      hour--;
-    }
-    minute = 59 - (amt - minute);    
-  }
+void Alarm::turnOff() {
+  ap.stopAlarmPlayer();
+  alreadyPlayed = true;
 }
 
 void Alarm::setTime(int amt) {
   hour = amt / 60;
   minute = amt % 60;
+  alreadyPlayed = false;
 }
 
 // TODO: ensure it works for edge cases
-void Alarm::toString(bool militaryTime, char* timeString) {
+void Alarm::toString(bool militaryTime, char* timeString) const {
 
   if(militaryTime) {
     timeString[0] = hour/10 + '0';
@@ -104,7 +91,7 @@ void Alarm::toString(bool militaryTime, char* timeString) {
 
 }
 
-void Alarm::toDayString(char* dayString) {
+void Alarm::toDayString(char* dayString) const {
 
   const char days[] = {'S','M','T','W','R','F','S'};
 

@@ -22,6 +22,7 @@ unsigned long timeSinceLastAction = millis();
 AlarmSet alarmset;
 //Alarm al;
 Alarm* currentSelectedAlarm;
+Alarm* alarmGoingOff;
 
 const char *ssid     = "WirelessNW_2.4";
 const char *password = "red66dog";
@@ -239,9 +240,11 @@ void testSetup() {
   alarmset.alarms[0].day[2] = false;
 
   alarmset.alarms[1].active = true;
-  alarmset.alarms[1].hour = 20;
+  alarmset.alarms[1].hour = 11;
+  alarmset.alarms[1].minute = 46;
   alarmset.alarms[1].day[0] = false;
   alarmset.alarms[1].day[6] = false;
+  alarmset.alarms[1].snooze = math;
 
   alarmset.alarms[2].active = true;
   alarmset.alarms[2].hour = 2;
@@ -257,7 +260,7 @@ void testSetup() {
 void loop() 
 {
   
-  manageLoop();
+  //manageLoop();
 
   switch(screen) {
     case clock_scr:
@@ -285,23 +288,38 @@ void loop()
       mainSettingsLoop();
       break;
     case snooze_math_scr:
-      //TODO: 
-      mathSnoozeLoop(*currentSelectedAlarm);
+      mathSnoozeLoop(*alarmGoingOff);
       break;
   } 
 
 }
 
-void manageLoop() {
+bool manageLoop() {
+
+  bool rVal = false;
+
   manageDFPlayer();
+
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
     Serial.println("Failed to obtain time");
-    return;
+    return false;
   }
-  //al.checkAlarm(timeinfo);
-  alarmset.checkAllAlarms(timeinfo);
+
+  Alarm* returnAlarm = alarmset.checkAllAlarms(timeinfo);
+  if(returnAlarm != nullptr) {
+    alarmGoingOff = returnAlarm;
+    if(returnAlarm->snooze == math) {
+      screen = snooze_math_scr;
+      rVal = true;
+    }
+  }
+
   backlight.manageBacklight();
+
+  if(checkScreenTimeout()) rVal = true;
+
+  return rVal;
 }
 
 
@@ -366,7 +384,7 @@ void mainTimeDisplayLoop() {
   if(Serial) Serial.println("Displaying main clock");
   displayClockPage(false);
   while(true) {
-    manageLoop();
+    if(manageLoop()) return;
     // Change display if time has changed
     Change ch = minuteHasChanged();
     if(ch == full) {
@@ -509,8 +527,8 @@ void mainMenuLoop() {
       timeSinceLastAction = millis();
       displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
     }
-    if(checkScreenTimeout()) return;
-    manageLoop();
+    //if(checkScreenTimeout()) return;
+    if(manageLoop()) return;
     
     if(rotaryEncoder.isEncoderButtonClicked()) {
       switch(rotaryEncoder.readEncoder()) {
@@ -691,8 +709,8 @@ void mainSettingsLoop() {
 
   while(true) {
 
-    if(checkScreenTimeout()) return;
-    manageLoop();
+    //if(checkScreenTimeout()) return;
+    if(manageLoop()) return;
 
     if(rotaryEncoder.encoderChanged()) {
       timeSinceLastAction = millis();
@@ -772,8 +790,8 @@ void alarmSettingsLoop(Alarm& currentAlarm) {
 
   while(true) {
 
-    if(checkScreenTimeout()) return;
-    manageLoop();
+    //if(checkScreenTimeout()) return;
+    if(manageLoop()) return;
 
     if(rotaryEncoder.encoderChanged()) {
       timeSinceLastAction = millis();
@@ -787,7 +805,9 @@ void alarmSettingsLoop(Alarm& currentAlarm) {
           displayAlarmSettings(true, currentAlarm.active, currentAlarm.snooze);
           break;
         case 1:
-          currentAlarm.snooze = !currentAlarm.snooze;
+          if(currentAlarm.snooze == on) currentAlarm.snooze = math;
+          else if(currentAlarm.snooze == math) currentAlarm.snooze = off;
+          else currentAlarm.snooze = on;
           displayAlarmSettings(true, currentAlarm.active, currentAlarm.snooze);
           break;
         case 2:
@@ -801,7 +821,7 @@ void alarmSettingsLoop(Alarm& currentAlarm) {
   }
 }
 
-void displayAlarmSettings(bool partial, bool alarmStatus, bool snoozeStatus) {
+void displayAlarmSettings(bool partial, bool alarmStatus, SnoozeType snoozeStatus) {
 
   if(partial) display.setPartialWindow(0, 0, display.width(), display.height());
   else display.setFullWindow();
@@ -821,11 +841,13 @@ void displayAlarmSettings(bool partial, bool alarmStatus, bool snoozeStatus) {
     } 
     
     display.setCursor(30, 22*3);
-    if(snoozeStatus) {
+    if(snoozeStatus == on) {
       display.print("Snooze: ON");
-    } else {
+    } else if(snoozeStatus == off) {
       display.print("Snooze: OFF");
-    }  
+    } else {
+      display.print("Snooze: MATH");
+    }
     
     display.setCursor(30, 22*4);
     display.print("Set Chime");
@@ -855,8 +877,8 @@ void alarmSettings2Loop(Alarm& currentAlarm) {
 
   while(true) {
 
-    if(checkScreenTimeout()) return;
-    manageLoop();
+    //if(checkScreenTimeout()) return;
+    if(manageLoop()) return;
 
     if(rotaryEncoder.encoderChanged()) {
       timeSinceLastAction = millis();
@@ -1012,8 +1034,8 @@ void listLoop(const char* title, const int length, int top, void (*printLine)(in
 
   while(true) {
 
-    if(checkScreenTimeout()) return;
-    manageLoop();
+    //if(checkScreenTimeout()) return;
+    if(manageLoop()) return;
 
     if(rotaryEncoder.encoderChanged()) {
         timeSinceLastAction = millis();
@@ -1021,7 +1043,6 @@ void listLoop(const char* title, const int length, int top, void (*printLine)(in
         if(onHover != NULL) onHover(val);
         if(val == top && top != 0 && val < prevEncoderPostition) {
             prevEncoderPostition = val;
-            // TODO: should increade by possibly more then once because the library (but make sure it doesn't overstep)
             top--;
             displayList(true, top, title, printLine);
             displayMenuSelectionIndicator(0);
@@ -1118,8 +1139,8 @@ void mathSnoozeLoop(Alarm& currentAlarm) {
 
   while(true) {
 
-    if(checkScreenTimeout()) return;
-    manageLoop();
+    //if(checkScreenTimeout()) return;
+    if(manageLoop()) return;
 
     if(rotaryEncoder.encoderChanged()) {
       timeSinceLastAction = millis();
@@ -1129,7 +1150,9 @@ void mathSnoozeLoop(Alarm& currentAlarm) {
     if(rotaryEncoder.isEncoderButtonClicked()) {
       int val = rotaryEncoder.readEncoder();
       if(val == correct) {
+        // TODO: Turn off alarm
         screen = clock_scr;
+        currentAlarm.turnOff();
         return;
       }
     }

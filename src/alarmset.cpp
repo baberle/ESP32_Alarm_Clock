@@ -16,6 +16,7 @@ bool AlarmSet::deleteAlarm(int idx) {
     // this is kind of hard
 }
 
+// Find the alarm that will go off next
 int AlarmSet::getNextAlarm() const {
 
   int nxtAlarm = -1;

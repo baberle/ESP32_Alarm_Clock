@@ -1,5 +1,7 @@
 #include "alarmclock.h"
 
+Preferences pref;
+
 int prevMinute = 0;
 enum Change {none, full, partial};
 bool militaryTime = false;
@@ -20,7 +22,6 @@ Screen screen = clock_scr;
 unsigned long timeSinceLastAction = millis();
 
 AlarmSet alarmset;
-//Alarm al;
 Alarm* currentSelectedAlarm;
 Alarm* alarmGoingOff;
 
@@ -28,7 +29,7 @@ const char *ssid     = "WirelessNW_2.4";
 const char *password = "red66dog";
 
 const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = -18000;
+long  gmtOffset_sec = -18000;
 const int   daylightOffset_sec = 3600;
 
 const char* timeZoneDescription[31] = {
@@ -53,7 +54,7 @@ const char* timeZoneDescription[31] = {
   "Hawaii Standard",
   "Alaska Standard",
   "Pacific Standard",
-  "Phoeniz Standard",
+  "Phoenix Standard",
   "Mountain Standard",
   "Central Standard",
   "Eastern Standard",
@@ -98,6 +99,7 @@ const int timeZoneOffset[31] = {
   -10800,
   -3600
 };
+// https://publib.boulder.ibm.com/tividd/td/TWS/SC32-1274-02/en_US/HTML/SRF_mst273.htm
 
 // considerations, such as limiting number of alarms and making number of alarms static, because limited memory
 // consider alignment of structs to prevent wasted space
@@ -115,8 +117,7 @@ GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display(GxEPD2_290(EINK_CS, EINK_DC, E
 Channel ch1(0, 255, 8);
 Backlight backlight(LED_1, ch1);
 
-int threshold = 40;
-bool touchDetected = false;
+const int threshold = 40;
 
 const char *fileTitles[14] = {
   "Star Wars",
@@ -141,9 +142,8 @@ unsigned long touchDelay = 0;
 bool hold = false;
 
 void hitSnooze() {
-  touchDetected = true;
   Serial.println("Touch detected");
-  //startLedMomentary();
+  //if(alarmGoingOff != NULL && )
   backlight.startMomentary();
 }
 
@@ -180,9 +180,15 @@ void setup() {
 
   drawLoading();
 
-  setupWiFi();
+  // TODO: should maybe also read this way and not store in global var?
+  pref.begin("sett",false);
+  militaryTime = pref.getBool("mil", false);
+  gmtOffset_sec = pref.getInt("gmt_off", -18000);
+  if(pref.getBool("light", false)) backlight.turnOn();
 
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  setupWiFi();
 
   setupDFPlayer();
   stopTrack();
@@ -656,7 +662,14 @@ bool rowActionAlarms(const int row) {
     // Add new alarm logic
     // TODO: go to alarm setting screen if room for another alarm
     Serial.println("Making new alarm");
-    alarmset.addAlarm();
+    bool success = alarmset.addAlarm();
+    if(success) {
+      screen = alarm_setting_scr;
+      currentSelectedAlarm = &alarmset.alarms[alarmset.numSetAlarms - 1];
+      return true;
+    } else {
+      displayPopup("Max Alarms Created");
+    }
   } else 
   if(row == alarmset.numSetAlarms+1) {
     screen = main_menu_scr;
@@ -684,6 +697,7 @@ bool rowActionTimezone(const int row) {
   if(row < 0 || row > 30) return false;
   Serial.print("New offset is: ");
   Serial.println(timeZoneOffset[row]);
+  pref.putInt("gmt_off", timeZoneOffset[row]);
   configTime(timeZoneOffset[row], daylightOffset_sec, ntpServer);
   screen = settings_scr;
   return true;
@@ -691,8 +705,9 @@ bool rowActionTimezone(const int row) {
 
 void displayTimezoneList() {
     Serial.println("Entering Timezone List Screen");
-    listLoop("Timezones", 30, 24, &printLineTimezone, &rowActionTimezone, NULL);
-    // TODO: Is this the correct number of timezones?
+    int idx = 0;
+    for(; timeZoneOffset[idx] != gmtOffset_sec && idx < 31; idx++);
+    listLoop("Timezones", 30, idx, &printLineTimezone, &rowActionTimezone, NULL);
 }
 
 /* =========================== MAIN SETTIGNS SCREEN =========================== */
@@ -721,6 +736,7 @@ void mainSettingsLoop() {
       switch(rotaryEncoder.readEncoder()) {
         case 0:
           militaryTime = !militaryTime;
+          pref.putBool("mil",militaryTime);
           displayMainSettings(true);
           break;
         case 1:
@@ -728,7 +744,8 @@ void mainSettingsLoop() {
           return;
         case 2:
           if(backlight.getState()) backlight.turnOff();
-          else backlight.turnOff();
+          else backlight.turnOn();
+          pref.putBool("light", backlight.getState());
           displayMainSettings(true);
           break;
         case 3:
@@ -976,7 +993,7 @@ void displayAlarmTime(Alarm& currentAlarm, const bool active, const bool focus) 
 }
 
 void displayDayIcon(bool selected, bool active, int wday) {
-  const char weekSymbol[7] = {'S','M','T','W','T','F','S'};
+  const char weekSymbol[7] = {'S','M','T','W','R','F','S'};
   if(selected) {
     display.drawCircle(37*(wday+1), 90, 14, GxEPD_BLACK);
   }
@@ -1028,6 +1045,7 @@ void listLoop(const char* title, const int length, int top, void (*printLine)(in
   
   timeSinceLastAction = millis();
   rotaryEncoder.setBoundaries(0, length, false);
+  if(length > 4 && top > length-3) top = length-3;
   rotaryEncoder.setEncoderValue(top);
   displayList(false, top, title, printLine);
   displayMenuSelectionIndicator(0);
@@ -1041,15 +1059,19 @@ void listLoop(const char* title, const int length, int top, void (*printLine)(in
         timeSinceLastAction = millis();
         int val = rotaryEncoder.readEncoder();
         if(onHover != NULL) onHover(val);
-        if(val == top && top != 0 && val < prevEncoderPostition) {
+        /*if(val == top && top != 0 && val < prevEncoderPostition) {*/
+        if(val < top && val >= 0 && val < prevEncoderPostition) {
             prevEncoderPostition = val;
-            top--;
+            //top--;
+            top = val;
             displayList(true, top, title, printLine);
             displayMenuSelectionIndicator(0);
         } else
-        if(val == top+4 && top != length && val > prevEncoderPostition) {
+        /*if(val == top+4 && top != length && val > prevEncoderPostition) {*/
+        if(val >= top+4 && val <= length && val > prevEncoderPostition) {
             prevEncoderPostition = val;
-            top++;
+            //top++;
+            top = val - 3;
             displayList(true, top, title, printLine);
             displayMenuSelectionIndicator(3);
         } else {
@@ -1059,6 +1081,7 @@ void listLoop(const char* title, const int length, int top, void (*printLine)(in
     
     if(rotaryEncoder.isEncoderButtonClicked()) {
       if(clickAction(rotaryEncoder.readEncoder())) return;
+      else displayList(true, top, title, printLine);
     }
 
   }
@@ -1092,6 +1115,7 @@ void displayList(bool partial, int top, const char* title, void (*printLine)(int
 }
 
 /* =========================== MATH SNOOZE SELECTION =========================== */
+#pragma region Math Snooze Selection
 
 void mathSnoozeLoop(Alarm& currentAlarm) {
 
@@ -1150,7 +1174,6 @@ void mathSnoozeLoop(Alarm& currentAlarm) {
     if(rotaryEncoder.isEncoderButtonClicked()) {
       int val = rotaryEncoder.readEncoder();
       if(val == correct) {
-        // TODO: Turn off alarm
         screen = clock_scr;
         currentAlarm.turnOff();
         return;
@@ -1200,4 +1223,34 @@ void mathSnoozeDisplay(bool partial, const String& equation, const String (&solu
 
   }
   while (display.nextPage());
+}
+
+#pragma endregion
+
+/* =========================== POPUP =========================== */
+// Display temporary message
+
+void displayPopup(const char* message) {
+  if(Serial) {
+    Serial.print("Displaying popup: ");
+    Serial.println(message);
+  }
+  unsigned long counter = millis();
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  display.getTextBounds(message, 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t x = ((display.width() - tbw) / 2) - tbx;
+  uint16_t y = ((display.height() - tbh) / 2) - tby;
+  display.setFullWindow();
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    display.setCursor(x, y);
+    display.print(message);
+  }
+  while (display.nextPage());
+  while(millis() - counter < 10000) {
+    if(manageLoop()) return;
+  }
+  timeSinceLastAction = millis();
 }

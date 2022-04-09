@@ -15,6 +15,7 @@
 #include <string.h>
 #include <math.h>
 #include "backlight.h"
+#include "Preferences.h"
 //#include "BluetoothSerial.h"
 
 #define ROTARY_ENCODER_A_PIN 32
@@ -85,5 +86,7 @@ void displayList(bool partial, int top, const char* title, void (*printLine)(int
 
 void mathSnoozeLoop(Alarm& currentAlarm);
 void mathSnoozeDisplay(bool partial, const String& equation, const String (&solutions)[3], const int selection);
+
+void displayPopup(const char* message);
 
 #endif

@@ -50,7 +50,7 @@ void Backlight::turnOn() {
 
 /* Turns off the backlight */
 void Backlight::turnOff() {
-    nightLightOn = true;
+    nightLightOn = false;
     ledcWrite(outChannel.getChannel(), 0);
 }
 

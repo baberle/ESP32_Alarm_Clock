@@ -27,6 +27,7 @@ struct Alarm
     // char array should be at least size 10
     void toString(bool militaryTime, char* timeString) const;
     void toDayString(char* dayString) const;
+    void printThis() const;
 };
 
 #endif

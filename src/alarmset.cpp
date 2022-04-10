@@ -1,6 +1,6 @@
 #include "alarmset.h"
 
-bool AlarmSet::addAlarm() {
+/*bool AlarmSet::addAlarm() {
     if(numSetAlarms < 10) {
         alarms[numSetAlarms].reset();
         numSetAlarms++;
@@ -81,5 +81,31 @@ Alarm* AlarmSet::checkAllAlarms(tm &timeinfo) {
         }
     }
     return nullptr;
+}*/
+
+/*bool AlarmSet::addAlarm() {
+  if(alarms.isFull()) {
+    return false;
+  } else {
+    Alarm* newAlarm = new Alarm();
+    alarms.push_back(newAlarm);
+    return true;
+  }
 }
 
+void AlarmSet::getAlarm(int idx) {
+  return alarms.at(idx);
+}
+
+void AlarmSet::deleteAlarm(int idx) {
+  alarms.remove(idx);
+}
+
+Alarm* AlarmSet::checkAllAlarms(tm &timeinfo) {
+  for(int i = 0; i < alarms.size(); i++) {
+    if(alarms.at(i)->checkAlarm(timeinfo)) {
+      return &alarms.at(i);
+    }
+  }
+  return nullptr;
+}*/

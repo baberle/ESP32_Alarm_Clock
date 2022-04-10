@@ -21,7 +21,7 @@ Screen screen = clock_scr;
 //Screen screen = snooze_math_scr;
 unsigned long timeSinceLastAction = millis();
 
-AlarmSet alarmset;
+AlarmGroup alarmgroup;
 Alarm* currentSelectedAlarm;
 Alarm* alarmGoingOff;
 
@@ -128,9 +128,9 @@ const char *fileTitles[14] = {
   "Here Comes the Sun",
   "Classic 1",
   "Classic 2",
-  "Morning has Broken",
   "Arcade Fire",
   "Blue Sky",
+  "Morning has Broken",
   "Morning Mood",
   "Call to Cows",
   "Rooster"
@@ -193,7 +193,7 @@ void setup() {
   setupDFPlayer();
   stopTrack();
 
-  testSetup();
+  //testSetup();
 
   rotaryEncoder.begin();
   rotaryEncoder.setup(readEncoderISR);
@@ -234,32 +234,32 @@ void setupWiFi() {
 
 void testSetup() {
 
-  alarmset.addAlarm();
-  alarmset.addAlarm();
-  alarmset.addAlarm();
-  alarmset.addAlarm();
+  alarmgroup.add();
+  alarmgroup.add();
+  alarmgroup.add();
+  alarmgroup.add();
 
-  alarmset.alarms[0].active = true;
-  alarmset.alarms[0].hour = 19;
-  alarmset.alarms[0].minute = 40;
-  alarmset.alarms[0].day[1] = false;
-  alarmset.alarms[0].day[2] = false;
+  alarmgroup.at(0)->active = true;
+  alarmgroup.at(0)->hour = 19;
+  alarmgroup.at(0)->minute = 40;
+  alarmgroup.at(0)->day[1] = false;
+  alarmgroup.at(0)->day[2] = false;
 
-  alarmset.alarms[1].active = true;
-  alarmset.alarms[1].hour = 11;
-  alarmset.alarms[1].minute = 46;
-  alarmset.alarms[1].day[0] = false;
-  alarmset.alarms[1].day[6] = false;
-  alarmset.alarms[1].snooze = math;
+  alarmgroup.at(1)->active = true;
+  alarmgroup.at(1)->hour = 11;
+  alarmgroup.at(1)->minute = 46;
+  alarmgroup.at(1)->day[0] = false;
+  alarmgroup.at(1)->day[6] = false;
+  alarmgroup.at(1)->snooze = math;
 
-  alarmset.alarms[2].active = true;
-  alarmset.alarms[2].hour = 2;
-  alarmset.alarms[2].minute = 30;
-  alarmset.alarms[2].day[1] = false;
-  alarmset.alarms[2].day[2] = false;
-  alarmset.alarms[2].day[3] = false;
-  alarmset.alarms[2].day[4] = false;
-  alarmset.alarms[2].day[5] = false;
+  alarmgroup.at(2)->active = true;
+  alarmgroup.at(2)->hour = 2;
+  alarmgroup.at(2)->minute = 30;
+  alarmgroup.at(2)->day[1] = false;
+  alarmgroup.at(2)->day[2] = false;
+  alarmgroup.at(2)->day[3] = false;
+  alarmgroup.at(2)->day[4] = false;
+  alarmgroup.at(2)->day[5] = false;
 
 }
 
@@ -312,7 +312,7 @@ bool manageLoop() {
     return false;
   }
 
-  Alarm* returnAlarm = alarmset.checkAllAlarms(timeinfo);
+  Alarm* returnAlarm = alarmgroup.checkAll(timeinfo);
   if(returnAlarm != nullptr) {
     alarmGoingOff = returnAlarm;
     if(returnAlarm->snooze == math) {
@@ -423,8 +423,8 @@ void drawWiFiIcon() {
 
 // Draws the alarm icon at the top of the screen
 void drawAlarmIcon() {
-  for(int i = 0; i < alarmset.numAlarms; i++) {
-    if(alarmset.alarms[i].active) {
+  for(int i = 0; i < alarmgroup.size(); i++) {
+    if(alarmgroup.at(i)->active) {
       display.drawBitmap(296-24-24-2, 1, alarm_icon, 24, 24, GxEPD_BLACK); 
       break;
     }
@@ -635,15 +635,15 @@ void displayAlarmLine(Alarm& alarm, const int x, const int y) {
 }
 
 void printLineAlarms(const int x, const int y, const int row) {
-  if(row < alarmset.numSetAlarms) {
-      displayAlarmLine(alarmset.alarms[row], x, y);
+  if(row < alarmgroup.size()) {
+      displayAlarmLine(*alarmgroup.at(row), x, y);
     } else {
-      if(row == alarmset.numSetAlarms) {
+      if(row == alarmgroup.size()) {
         display.drawBitmap(x, y-14, plus_outline, 18, 18, GxEPD_BLACK);
         display.setCursor(x+18+4, y);
         display.print("New Alarm");
       } else 
-      if(row == alarmset.numSetAlarms+1) {
+      if(row == alarmgroup.size()+1) {
         display.setCursor(x, y);
         display.print("Exit");
       }
@@ -651,27 +651,27 @@ void printLineAlarms(const int x, const int y, const int row) {
 }
 
 bool rowActionAlarms(const int row) {
-  if(row < alarmset.numSetAlarms) {
+  if(row < alarmgroup.size()) {
     // go to alarm setsing screen for alarm # row
     Serial.println("Go into alarm");
-    currentSelectedAlarm = &alarmset.alarms[row];
+    currentSelectedAlarm = alarmgroup.at(row);
     screen = alarm_setting_scr;
     return true;
   } else 
-  if(row == alarmset.numSetAlarms) {
+  if(row == alarmgroup.size()) {
     // Add new alarm logic
     // TODO: go to alarm setting screen if room for another alarm
     Serial.println("Making new alarm");
-    bool success = alarmset.addAlarm();
-    if(success) {
+    Alarm* newAlarm = alarmgroup.add();
+    if(newAlarm != nullptr) {
       screen = alarm_setting_scr;
-      currentSelectedAlarm = &alarmset.alarms[alarmset.numSetAlarms - 1];
+      currentSelectedAlarm = newAlarm;
       return true;
     } else {
       displayPopup("Max Alarms Created");
     }
   } else 
-  if(row == alarmset.numSetAlarms+1) {
+  if(row == alarmgroup.size()+1) {
     screen = main_menu_scr;
     return true;
   }
@@ -680,8 +680,8 @@ bool rowActionAlarms(const int row) {
 
 void displayAlarmsList() {
     Serial.println("Entering Alarms List Screen");
-    Serial.print("Num alarms is ");Serial.println(alarmset.numSetAlarms);
-    listLoop("Alarms", alarmset.numSetAlarms+1, 0, &printLineAlarms, &rowActionAlarms, NULL);
+    Serial.print("Num alarms is ");Serial.println(alarmgroup.size());
+    listLoop("Alarms", alarmgroup.size()+1, 0, &printLineAlarms, &rowActionAlarms, NULL);
 }
 
 /* =========================== CHOOSE TIMEZONES =========================== */
@@ -1034,6 +1034,7 @@ void hoverChime(const int row) {
 void displayChimeList() {
     Serial.println("Entering Chime List Screen");
     listLoop("Chime", numFileTitles, 0, &printLineChime, &rowActionChime, &hoverChime);
+    stopTrack(); // TODO: check no alarm is playing
 }
 
 /* =========================== LIST DISPLAY =========================== */

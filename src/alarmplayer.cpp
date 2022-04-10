@@ -161,10 +161,13 @@ void playTrack(int track) {
 }
 
 void stopTrack() {
-  if(alarmIsPlaying) {
+  /*if(alarmIsPlaying) {
     dfmp3.stop();
     alarmIsPlaying = false;
-  }
+  }*/
+  dfmp3.stop();
+  dfmp3.stop();
+  alarmIsPlaying = false;
 }
 
 void manageDFPlayer() {

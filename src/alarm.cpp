@@ -29,6 +29,7 @@ bool Alarm::checkAlarm(tm &timeinfo) {
     if(!ap.alarmEnabled) {
         if(day[timeinfo.tm_wday]) {
             if(timeinfo.tm_hour == hour && timeinfo.tm_min == minute) {
+                printThis();
                 ap.startAlarmPlayer();
                 return true;
                 // TODO: do checking if other alarms are playing here
@@ -131,4 +132,20 @@ void Alarm::toDayString(char* dayString) const {
     dayString[ctr]= '\0';
   }
 
+}
+
+void Alarm::printThis() const {
+  Serial.print("Active: ");
+  Serial.println((active ? "true" : "false"));
+  Serial.print("Already Played: ");
+  Serial.println((alreadyPlayed ? "true" : "false"));
+  Serial.println("Snooze: ");
+  Serial.print(snooze);
+  Serial.print("Time: ");
+  Serial.print(hour);
+  Serial.print(":");
+  Serial.println(minute);
+  Serial.print("Days: ");
+  for(int i = 0; i < 7; i++) Serial.print(day[i]);
+  Serial.println("");
 }

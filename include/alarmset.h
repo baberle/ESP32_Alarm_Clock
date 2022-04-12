@@ -112,6 +112,7 @@ class AlarmGroup {
     }
     return nullptr;
   }
+  void initialize_from_saved();
 };
 
 #endif

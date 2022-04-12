@@ -34,6 +34,9 @@
 
 void setupWiFi();
 void WiFiConnect();
+void WiFiStationConnected();
+void WiFiStationDisconnected();
+void WiFiScan();
 
 void testSetup();
 

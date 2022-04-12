@@ -18,20 +18,19 @@ enum Screen {
   snooze_math_scr,
   time_settings_scr
 };
-//Screen screen = clock_scr;
-Screen screen = time_settings_scr;
+Screen screen = clock_scr;
+//Screen screen = alarms_scr;
 unsigned long timeSinceLastAction = millis();
 
 AlarmGroup alarmgroup;
 Alarm* currentSelectedAlarm;
+int currentSelectedAlarmIdx;
 Alarm* alarmGoingOff;
 
 /*const char *ssid     = "WirelessNW_2.4";
 const char *password = "red66dog";*/
-//const char *ssid     = "UCONN-GUEST"; // Cannot connect to NTP
-//const char *password = NULL;
 const char *ssid = "bphone";
-const char *password = "Excalibur";
+const char *password = "espnetwork";
 
 const char* ntpServer = "pool.ntp.org";
 long  gmtOffset_sec = -18000;
@@ -200,6 +199,7 @@ void setup() {
   stopTrack();
 
   //testSetup();
+  alarmgroup.add();
 
   rotaryEncoder.begin();
   rotaryEncoder.setup(readEncoderISR);
@@ -211,6 +211,9 @@ void setup() {
   randomSeed(analogRead(39));
 }
 
+void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
+  Serial.println("Connected to AP successfully");
+}
 
 void WiFiConnect() {
   long startTime = millis();
@@ -227,6 +230,32 @@ void WiFiConnect() {
   Serial.println(" CONNECTED");
 }
 
+void WiFiScan() {
+  Serial.println("scan start");
+
+  // WiFi.scanNetworks will return the number of networks found
+  int n = WiFi.scanNetworks();
+  Serial.println("scan done");
+  if (n == 0) {
+      Serial.println("no networks found");
+  } else {
+      Serial.print(n);
+      Serial.println(" networks found");
+      for (int i = 0; i < n; ++i) {
+          // Print SSID and RSSI for each network found
+          Serial.print(i + 1);
+          Serial.print(": ");
+          Serial.print(WiFi.SSID(i));
+          Serial.print(" (");
+          Serial.print(WiFi.RSSI(i));
+          Serial.print(")");
+          Serial.println((WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?" ":"*");
+          delay(10);
+      }
+  }
+  Serial.println("");
+}
+
 void setupWiFi() {
   if(!WiFiEnabled) return;
   WiFi.mode(WIFI_STA);
@@ -234,8 +263,16 @@ void setupWiFi() {
   WiFi.setHostname(hostname);
   //WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
   //WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
-  //WiFiScan();
+  WiFiScan();
   WiFiConnect();
+}
+
+void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
+  Serial.println("Disconnected from WiFi access point");
+  Serial.print("WiFi lost connection. Reason: ");
+  Serial.println(info.disconnected.reason);
+  Serial.println("Trying to Reconnect");
+  WiFi.begin(ssid, password);
 }
 
 void testSetup() {
@@ -551,7 +588,8 @@ void mainMenuLoop() {
           screen = alarms_scr;
           return;
         case 1:
-          break;
+          screen = time_settings_scr;
+          return;
         case 2:
           screen = settings_scr;
           return;
@@ -664,6 +702,7 @@ bool rowActionAlarms(const int row) {
     // go to alarm setsing screen for alarm # row
     Serial.println("Go into alarm");
     currentSelectedAlarm = alarmgroup.at(row);
+    currentSelectedAlarmIdx = row;
     screen = alarm_setting_scr;
     return true;
   } else 
@@ -675,6 +714,7 @@ bool rowActionAlarms(const int row) {
     if(newAlarm != nullptr) {
       screen = alarm_setting_scr;
       currentSelectedAlarm = newAlarm;
+      currentSelectedAlarmIdx = alarmgroup.size() - 1;
       return true;
     } else {
       displayPopup("Max Alarms Created");
@@ -842,6 +882,7 @@ void timeSettingsLoop() {
             daylightOffset_sec = 3600;
             pref.putBool("dst",true);
           }  
+          configTime(pref.getInt("gmt_off",-18000), daylightOffset_sec, ntpServer);
           displayTimeSettings(true);
           break;
         case 3:
@@ -892,14 +933,27 @@ void displayTimeSettings(bool partial) {
 
 /* =========================== ALARM SETTIGNS 1 =========================== */
 
+void deleteDot(bool on) {
+  display.setPartialWindow(170, 8+22*4, 30, 30); // TODO: probably need to play around with the dimension
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    if(on) display.fillCircle(185, 16+22*4, 3, GxEPD_BLACK);
+  }
+  while (display.nextPage());
+}
+
 void alarmSettingsLoop(Alarm& currentAlarm) {
 
   if(Serial) Serial.println("Displaying alarm settings menu");
 
-  rotaryEncoder.setBoundaries(0, 3, false);
+  rotaryEncoder.setBoundaries(0, 4, false);
   rotaryEncoder.setEncoderValue(0);
   displayAlarmSettings(false, currentAlarm.active, currentAlarm.snooze);
   timeSinceLastAction = millis();
+
+  int prevEncoderPosition = 0;
 
   while(true) {
 
@@ -908,7 +962,16 @@ void alarmSettingsLoop(Alarm& currentAlarm) {
 
     if(rotaryEncoder.encoderChanged()) {
       timeSinceLastAction = millis();
-      displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+      if(rotaryEncoder.readEncoder() == 4) {
+        displayMenuSelectionIndicator(10);
+        deleteDot(true);
+      } else if(prevEncoderPosition == 4) {
+        deleteDot(false);
+        displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+      } else {
+        displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+      }
+      prevEncoderPosition = rotaryEncoder.readEncoder();
     }
     
     if(rotaryEncoder.isEncoderButtonClicked()) {
@@ -928,6 +991,10 @@ void alarmSettingsLoop(Alarm& currentAlarm) {
           return;
         case 3:
           screen = alarm_setting2_scr;
+          return;
+        case 4:
+          screen = main_menu_scr;
+          alarmgroup.remove(currentSelectedAlarmIdx); // HACK: mixing global and local
           return;
       }
     }
@@ -967,6 +1034,9 @@ void displayAlarmSettings(bool partial, bool alarmStatus, SnoozeType snoozeStatu
     
     display.setCursor(30, 22*5);
     display.print("Next");
+
+    display.setCursor(200, 22*5);
+    display.print("Delete");
   }
   while (display.nextPage());
 

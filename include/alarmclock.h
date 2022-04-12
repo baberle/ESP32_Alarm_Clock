@@ -57,6 +57,9 @@ void displayTitle();
 void displayMainMenu();
 void displayMenuSelectionIndicator(int selection);
 
+void timeSettingsLoop();
+void displayTimeSettings(bool partial);
+
 void mainSettingsLoop();
 void displayMainSettings(bool partial);
 

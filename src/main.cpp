@@ -15,22 +15,27 @@ enum Screen {
   chime_setting_scr,
   timezone_scr, 
   settings_scr,
-  snooze_math_scr
+  snooze_math_scr,
+  time_settings_scr
 };
-Screen screen = clock_scr;
-//Screen screen = snooze_math_scr;
+//Screen screen = clock_scr;
+Screen screen = time_settings_scr;
 unsigned long timeSinceLastAction = millis();
 
 AlarmGroup alarmgroup;
 Alarm* currentSelectedAlarm;
 Alarm* alarmGoingOff;
 
-const char *ssid     = "WirelessNW_2.4";
-const char *password = "red66dog";
+/*const char *ssid     = "WirelessNW_2.4";
+const char *password = "red66dog";*/
+//const char *ssid     = "UCONN-GUEST"; // Cannot connect to NTP
+//const char *password = NULL;
+const char *ssid = "bphone";
+const char *password = "Excalibur";
 
 const char* ntpServer = "pool.ntp.org";
 long  gmtOffset_sec = -18000;
-const int   daylightOffset_sec = 3600;
+int   daylightOffset_sec = 3600;
 
 const char* timeZoneDescription[31] = {
   "Greenwich Mean",
@@ -184,6 +189,7 @@ void setup() {
   pref.begin("sett",false);
   militaryTime = pref.getBool("mil", false);
   gmtOffset_sec = pref.getInt("gmt_off", -18000);
+  daylightOffset_sec = (pref.getBool("dst",true) ? 3600 : 0);
   if(pref.getBool("light", false)) backlight.turnOn();
 
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
@@ -295,6 +301,9 @@ void loop()
       break;
     case snooze_math_scr:
       mathSnoozeLoop(*alarmGoingOff);
+      break;
+    case time_settings_scr:
+      timeSettingsLoop();
       break;
   } 
 
@@ -784,6 +793,93 @@ void displayMainSettings(bool partial) {
       display.print("Night Light: ON");
     } else {
       display.print("Night Light: OFF");
+    } 
+    
+    display.setCursor(30, 22*5);
+    display.print("Exit");
+  }
+  while (display.nextPage());
+
+  displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+}
+
+/* =========================== MAIN SETTIGNS SCREEN =========================== */
+
+
+void timeSettingsLoop() {
+
+  if(Serial) Serial.println("Displaying time settings menu");
+
+  rotaryEncoder.setBoundaries(0, 3, false);
+  rotaryEncoder.setEncoderValue(0);
+  displayTimeSettings(false);
+  timeSinceLastAction = millis();
+
+  while(true) {
+
+    if(manageLoop()) return;
+
+    if(rotaryEncoder.encoderChanged()) {
+      timeSinceLastAction = millis();
+      displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
+    }
+    
+    if(rotaryEncoder.isEncoderButtonClicked()) {
+      switch(rotaryEncoder.readEncoder()) {
+        case 0:
+          militaryTime = !militaryTime;
+          pref.putBool("mil",militaryTime);
+          displayTimeSettings(true);
+          break;
+        case 1:
+          screen = timezone_scr;
+          return;
+        case 2:
+          if(daylightOffset_sec == 3600) {
+            daylightOffset_sec = 0;
+            pref.putBool("dst",false);
+          } else {
+            daylightOffset_sec = 3600;
+            pref.putBool("dst",true);
+          }  
+          displayTimeSettings(true);
+          break;
+        case 3:
+          screen = main_menu_scr;
+          return;
+      }
+    }
+  }
+}
+
+
+void displayTimeSettings(bool partial) {
+
+  if(partial) display.setPartialWindow(0, 0, display.width(), display.height());
+  else display.setFullWindow();
+  
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    
+    displayTitle("Time Settings");
+    
+    display.setCursor(30, 22*2);
+    if(militaryTime) {
+      display.print("24 Hour Time: ON");
+    } else {
+      display.print("24 Hour Time: OFF");
+    }    
+    
+    display.setCursor(30, 22*3);
+    display.print("Change Timezone");
+    
+    display.setCursor(30, 22*4);
+    if(daylightOffset_sec == 3600) {
+      display.print("Daylight Savings: ON");
+    } else {
+      display.print("Daylight Savings: OFF");
     } 
     
     display.setCursor(30, 22*5);

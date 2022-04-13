@@ -148,6 +148,10 @@ bool hold = false;
 void hitSnooze() {
   Serial.println("Touch detected");
   //if(alarmGoingOff != NULL && )
+  /*if(millis() - touchDelay > 1000) {
+    alarmgroup.hitSnooze();
+  }*/
+  alarmgroup.hitOff();
   backlight.startMomentary();
 }
 
@@ -200,6 +204,9 @@ void setup() {
 
   //testSetup();
   alarmgroup.add();
+  alarmgroup.at(0)->active = true;
+  alarmgroup.at(0)->hour = 13;
+  alarmgroup.at(0)->minute = 23;
 
   rotaryEncoder.begin();
   rotaryEncoder.setup(readEncoderISR);

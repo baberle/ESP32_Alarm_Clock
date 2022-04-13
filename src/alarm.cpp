@@ -29,6 +29,7 @@ bool Alarm::checkAlarm(tm &timeinfo) {
     if(!ap.alarmEnabled) {
         if(day[timeinfo.tm_wday]) {
             if(timeinfo.tm_hour == hour && timeinfo.tm_min == minute) {
+                Serial.println("Starting Alarm");
                 printThis();
                 ap.startAlarmPlayer();
                 return true;

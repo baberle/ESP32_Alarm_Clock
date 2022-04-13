@@ -24,10 +24,16 @@ bool alarmIsPlaying = false;
 
 AlarmPlayer::AlarmPlayer(const int _track) {
   track = _track;
+  volume = 0;
+  alarmEnabled = false;
+  snoozed = false;
 }
 
 AlarmPlayer::AlarmPlayer() {
   track = 1;
+  volume = 0;
+  alarmEnabled = false;
+  snoozed = false;
 }
 
 void AlarmPlayer::startAlarmPlayer() {

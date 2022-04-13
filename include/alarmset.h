@@ -67,6 +67,7 @@ class AlarmGroup {
   Alarm* _arr[10];
   int _size = 0;
   int _maxSize = 10;
+  Alarm* goingOff = nullptr;
   public:
   //AlarmGroup();
   ~AlarmGroup() { 
@@ -112,6 +113,23 @@ class AlarmGroup {
     }
     return nullptr;
   }
+  void hitOff() {
+    for(int i = 0; i < _size; i++) {
+      if(_arr[i]->ap.alarmEnabled) {
+        _arr[i]->turnOff();
+        break;
+      }
+    }
+  }
+  void hitSnooze() {
+    for(int i = 0; i < _size; i++) {
+      if(_arr[i]->ap.alarmEnabled) {
+        _arr[i]->snoozeAlarm();
+        break;
+      }
+    }
+  }
+  Alarm* alarmIsGoingOff();
   void initialize_from_saved();
 };
 

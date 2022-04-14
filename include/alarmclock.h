@@ -2,20 +2,23 @@
 #define __ALARMCLOCK_H
 
 #include <Arduino.h>
-#include <time.h>
 #include <WiFi.h>
+#include <ESPAsyncWebServer.h>
+#include <time.h>
 #include <GxEPD2_BW.h>
+#include <SPIFFS.h>
 #include <Fonts/FreeMonoBold9pt7b.h>
-#include "alarmplayer.h"
-#include "alarm.h"
-#include "alarmset.h"
 #include "AiEsp32RotaryEncoder.h"
-#include "bitmaps.h"
 #include <Adafruit_I2CDevice.h> 
 #include <string.h>
 #include <math.h>
-#include "backlight.h"
 #include "Preferences.h"
+#include "bitmaps.h"
+#include "alarmset.h"
+#include "alarm.h"
+#include "alarmplayer.h"
+#include "backlight.h"
+#include "wifimanager.h"
 //#include "BluetoothSerial.h"
 
 #define ROTARY_ENCODER_A_PIN 32

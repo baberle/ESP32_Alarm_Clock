@@ -22,7 +22,7 @@ void Alarm::reset() {
 
 // TODO: this should only go off once a minute even if the person hits snooze before the minute is up (keep snooze value in alarm player)
 bool Alarm::checkAlarm(tm &timeinfo) {
-  if(active) {
+  if(active && !prevent) {
     if(alreadyPlayed) {
       if(timeinfo.tm_min == minute+1) alreadyPlayed = false;
     } else

@@ -3,8 +3,9 @@
 
 #include <WiFi.h>
 #include <SPIFFS.h>
+#include <ESPAsyncWebServer.h>
 
-class WiFiManager {
+/*
     String _hostname;
     String _ssid;
     String _password;
@@ -20,6 +21,11 @@ class WiFiManager {
     void setup();
     void addNetwork(fs::FS &fs, const char* ssid, const char* password);
     unsigned long timeDisconnected();
-};
+};*/
+
+void setupWiFi();
+void addNetwork(fs::FS &fs, const char* ssid, const char* password);
+unsigned long timeDisconnected();
+void deliverWebpage();
 
 #endif

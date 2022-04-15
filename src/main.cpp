@@ -141,249 +141,6 @@ const char *fileTitles[14] = {
 };
 const int numFileTitles = 14;
 
-unsigned long touchDelay = 0;
-//bool alarmIsPlaying = false;
-bool hold = false;
-
-void hitSnooze() {
-  Serial.println("Touch detected");
-  //if(alarmGoingOff != NULL && )
-  /*if(millis() - touchDelay > 1000) {
-    alarmgroup.hitSnooze();
-  }*/
-  alarmgroup.hitOff();
-  backlight.startMomentary();
-}
-
-/*void hitSnooze() {
-  if(alarmIsPlaying && !alarmSnoozed) {
-    if(!hold) {
-      touchDelay = millis();
-      hold = true;
-    } else {
-      const int holdTime = 3000;
-      if(millis() - touchDelay > holdTime) {
-        hold = false;
-        alarm.snooze();
-      }
-    }
-  } else {
-    backlight.startMomentary();
-  }
-}*/
-
-
-
-
-AsyncWebServer server(80);
-
-const char* PARAM_INPUT_1 = "ssid";
-const char* PARAM_INPUT_2 = "pass";
-const char* PARAM_INPUT_3 = "ip";
-const char* PARAM_INPUT_4 = "gateway";
-
-String ssid;
-String pass;
-String ip;
-String gateway;
-
-const char* ssidPath = "/ssid.txt";
-const char* passPath = "/pass.txt";
-const char* ipPath = "/ip.txt";
-const char* gatewayPath = "/gateway.txt";
-
-IPAddress localIP;
-IPAddress localGateway;
-IPAddress subnet(255, 255, 0, 0);
-
-unsigned long previousMillis = 0;
-const long interval = 10000;  // interval to wait for Wi-Fi connection (milliseconds)
-
-String ledState;
-
-
-// Initialize SPIFFS
-void initSPIFFS() {
-  if (!SPIFFS.begin(true)) {
-    Serial.println("An error has occurred while mounting SPIFFS");
-  }
-  Serial.println("SPIFFS mounted successfully");
-}
-
-// Read File from SPIFFS
-String readFile(fs::FS &fs, const char * path){
-  Serial.printf("Reading file: %s\r\n", path);
-
-  File file = fs.open(path);
-  if(!file || file.isDirectory()){
-    Serial.println("- failed to open file for reading");
-    return String();
-  }
-  
-  String fileContent;
-  while(file.available()){
-    fileContent = file.readStringUntil('\n');
-    break;     
-  }
-  return fileContent;
-}
-
-// Write file to SPIFFS
-void writeFile(fs::FS &fs, const char * path, const char * message){
-  Serial.printf("Writing file: %s\r\n", path);
-
-  File file = fs.open(path, FILE_WRITE);
-  if(!file){
-    Serial.println("- failed to open file for writing");
-    return;
-  }
-  if(file.print(message)){
-    Serial.println("- file written");
-  } else {
-    Serial.println("- frite failed");
-  }
-}
-
-// Initialize WiFi
-bool initWiFi() {
-  if(ssid.equals("") || ip.equals("")){
-    Serial.println("Undefined SSID or IP address.");
-    return false;
-  }
-
-  WiFi.mode(WIFI_STA);
-  localIP.fromString(ip.c_str());
-  localGateway.fromString(gateway.c_str());
-
-
-  if (!WiFi.config(localIP, localGateway, subnet)){
-    Serial.println("STA Failed to configure");
-    return false;
-  }
-  WiFi.begin(ssid.c_str(), pass.c_str());
-  Serial.println("Connecting to WiFi...");
-
-  unsigned long currentMillis = millis();
-  previousMillis = currentMillis;
-
-  while(WiFi.status() != WL_CONNECTED) {
-    currentMillis = millis();
-    if (currentMillis - previousMillis >= interval) {
-      Serial.println("Failed to connect.");
-      return false;
-    }
-  }
-
-  Serial.println(WiFi.localIP());
-  return true;
-}
-
-// Replaces placeholder with LED state value
-String processor(const String& var) {
-  if(var == "STATE") {
-    if(backlight.getState()) {
-      ledState = "ON";
-    }
-    else {
-      ledState = "OFF";
-    }
-    return ledState;
-  }
-  return String();
-}
-
-void deliverWebpage() {
-  if(initWiFi()) {
-    // Route for root / web page
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-      request->send(SPIFFS, "/index.html", "text/html", false, processor);
-    });
-    server.serveStatic("/", SPIFFS, "/");
-    
-    // Route to set GPIO state to HIGH
-    server.on("/on", HTTP_GET, [](AsyncWebServerRequest *request) {
-      backlight.turnOn();
-      request->send(SPIFFS, "/index.html", "text/html", false, processor);
-    });
-
-    // Route to set GPIO state to LOW
-    server.on("/off", HTTP_GET, [](AsyncWebServerRequest *request) {
-      //digitalWrite(ledPin, LOW);
-      backlight.turnOff();
-      request->send(SPIFFS, "/index.html", "text/html", false, processor);
-    });
-    server.begin();
-  }
-  else {
-    // Connect to Wi-Fi network with SSID and password
-    Serial.println("Setting AP (Access Point)");
-    // NULL sets an open Access Point
-    WiFi.softAP("ESP-WIFI-MANAGER", NULL);
-
-    IPAddress IP = WiFi.softAPIP();
-    Serial.print("AP IP address: ");
-    Serial.println(IP); 
-
-    // Web Server Root URL
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-      request->send(SPIFFS, "/wifimanager.html", "text/html");
-    });
-    
-    server.serveStatic("/", SPIFFS, "/");
-    
-    server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) {
-      int params = request->params();
-      for(int i=0;i<params;i++){
-        AsyncWebParameter* p = request->getParam(i);
-        if(p->isPost()){
-          // HTTP POST ssid value
-          if (p->name() == PARAM_INPUT_1) {
-            ssid = p->value().c_str();
-            Serial.print("SSID set to: ");
-            Serial.println(ssid);
-            // Write file to save value
-            writeFile(SPIFFS, ssidPath, ssid.c_str());
-          }
-          // HTTP POST pass value
-          if (p->name() == PARAM_INPUT_2) {
-            pass = p->value().c_str();
-            Serial.print("Password set to: ");
-            Serial.println(pass);
-            // Write file to save value
-            writeFile(SPIFFS, passPath, pass.c_str());
-          }
-          // HTTP POST ip value
-          if (p->name() == PARAM_INPUT_3) {
-            ip = p->value().c_str();
-            Serial.print("IP Address set to: ");
-            Serial.println(ip);
-            // Write file to save value
-            writeFile(SPIFFS, ipPath, ip.c_str());
-          }
-          // HTTP POST gateway value
-          if (p->name() == PARAM_INPUT_4) {
-            gateway = p->value().c_str();
-            Serial.print("Gateway set to: ");
-            Serial.println(gateway);
-            // Write file to save value
-            writeFile(SPIFFS, gatewayPath, gateway.c_str());
-          }
-          //Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
-        }
-      }
-      request->send(200, "text/plain", "Done. ESP will restart, connect to your router and go to IP address: " + ip);
-      delay(3000);
-      ESP.restart();
-    });
-    server.begin();
-  }
-}
-
-WiFiManager wifi_manager("IOT Alarm Clock");
-
-//CSV wifi_csv("/wifi.csv");
-
-
 void IRAM_ATTR readEncoderISR()
 {
     rotaryEncoder.readEncoder_ISR();
@@ -416,15 +173,16 @@ void setup() {
 
   //wifi_manager.setup2();
 
-  wifi_manager.setup();
+  //wifi_manager.setup();
 
-  //wifi_csv.initSPIFFS();
-  //wifi_csv.print(SPIFFS);
-  /*wifi_csv.addLine(SPIFFS, "other_network,password");
-  wifi_csv.addLine(SPIFFS, "other_network2,password2");
-  wifi_csv.print(SPIFFS);*/
+  bool connected = true;
+  // TODO: should return bool
+  setupWiFi();
 
-
+  if(!connected) {
+    displayError("Could not connect to WiFi");
+    // TODO: this will just be overwritter
+  }
 
   // TODO: should maybe also read this way and not store in global var?
   pref.begin("sett",false);
@@ -458,70 +216,6 @@ void setup() {
   alarmgroup.printFile(SPIFFS);
   alarmgroup.readFile();
 }
-
-/*void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
-  Serial.println("Connected to AP successfully");
-}
-
-void WiFiConnect() {
-  long startTime = millis();
-  Serial.printf("Connecting to %s ", ssid);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-      if(millis() - startTime > 5000) {
-        Serial.println(" DISCONNECTED");
-        return;
-      }
-      delay(500);
-      Serial.print(".");
-  }
-  Serial.println(" CONNECTED");
-}
-
-void WiFiScan() {
-  Serial.println("scan start");
-
-  // WiFi.scanNetworks will return the number of networks found
-  int n = WiFi.scanNetworks();
-  Serial.println("scan done");
-  if (n == 0) {
-      Serial.println("no networks found");
-  } else {
-      Serial.print(n);
-      Serial.println(" networks found");
-      for (int i = 0; i < n; ++i) {
-          // Print SSID and RSSI for each network found
-          Serial.print(i + 1);
-          Serial.print(": ");
-          Serial.print(WiFi.SSID(i));
-          Serial.print(" (");
-          Serial.print(WiFi.RSSI(i));
-          Serial.print(")");
-          Serial.println((WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?" ":"*");
-          delay(10);
-      }
-  }
-  Serial.println("");
-}
-
-void setupWiFi() {
-  if(!WiFiEnabled) return;
-  WiFi.mode(WIFI_STA);
-  WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
-  WiFi.setHostname(hostname);
-  //WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
-  //WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
-  WiFiScan();
-  WiFiConnect();
-}
-
-void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
-  Serial.println("Disconnected from WiFi access point");
-  Serial.print("WiFi lost connection. Reason: ");
-  Serial.println(info.disconnected.reason);
-  Serial.println("Trying to Reconnect");
-  WiFi.begin(ssid, password);
-}*/
 
 void testSetup() {
 
@@ -594,6 +288,26 @@ void loop()
 
 }
 
+unsigned long touchDelay = 0;
+//bool alarmIsPlaying = false;
+bool hold = false;
+
+void hitSnooze() {
+  Serial.println("Touch detected");
+  //if(alarmGoingOff != NULL && )
+  /*if(millis() - touchDelay > 1000) {
+    alarmgroup.hitSnooze();
+  }*/
+
+  alarmgroup.hitOff();
+  backlight.startMomentary();
+}
+
+bool backlightOnBefore = false;
+bool alarmOnBefore = false;
+bool alreadyTurnedOff = false;
+
+// TODO: not everything in here has to be checked every loop; maybe split it up a bit
 bool manageLoop() {
 
   bool rVal = false;
@@ -607,17 +321,38 @@ bool manageLoop() {
   }
 
   Alarm* returnAlarm = alarmgroup.checkAll(timeinfo);
-  if(returnAlarm != nullptr) {
+  if(returnAlarm != nullptr && !alarmOnBefore) {
+    alreadyTurnedOff = false;
     alarmGoingOff = returnAlarm;
+    alarmOnBefore = true;
+    backlightOnBefore = backlight.getState();
+    backlight.turnOn();
     if(returnAlarm->snooze == math) {
       screen = snooze_math_scr;
       rVal = true;
     }
+  } else if(!alreadyTurnedOff && returnAlarm != nullptr) {
+    if(!backlightOnBefore) backlight.turnOff();
+    alreadyTurnedOff = true;
   }
 
   backlight.manageBacklight();
 
   if(checkScreenTimeout()) rVal = true;
+
+  // ESP32 will be about 52 seconds off after 30 days
+  unsigned long innacurateAfter = 2592000000;
+  if(timeDisconnected() != 0) {
+    unsigned long duration;
+    // handle millis rollover
+    if(millis() > timeDisconnected()) {
+      duration = millis();
+      duration += timeDisconnected() - (unsigned long)0 - (unsigned long)1;
+    } else duration = millis() - timeDisconnected();
+    if(duration >= innacurateAfter) {
+      displayError("Too long disconnect from wifi");
+    }
+  }
 
   return rVal;
 }
@@ -633,12 +368,14 @@ void drawLoading() {
   do
   {
     display.fillScreen(GxEPD_WHITE);
-    display.drawBitmap(15, 20, clock_logo, 259, 54, GxEPD_BLACK);
+    display.drawBitmap(20, 15, clock_logo, 249, 71, GxEPD_BLACK);
     display.setCursor(x,y);
     display.print(conn);
   }
   while (display.nextPage());
 }
+
+
 
 bool checkScreenTimeout() {
   const int timeoutInterval = 2*60*1000;
@@ -1196,6 +933,8 @@ void alarmSettingsLoop(Alarm& currentAlarm) {
 
   if(Serial) Serial.println("Displaying alarm settings menu");
 
+  currentAlarm.prevent = true;
+
   rotaryEncoder.setBoundaries(0, 4, false);
   rotaryEncoder.setEncoderValue(0);
   displayAlarmSettings(false, currentAlarm.active, currentAlarm.snooze);
@@ -1353,6 +1092,7 @@ void alarmSettings2Loop(Alarm& currentAlarm) {
         case 8:
           screen = main_menu_scr;
           alarmgroup.writeToFile();
+          currentAlarm.prevent = false;
           return;
         default: break;
       }
@@ -1667,4 +1407,30 @@ void displayPopup(const char* message) {
     if(manageLoop()) return;
   }
   timeSinceLastAction = millis();
+}
+
+/* =========================== ERROR =========================== */
+
+void displayError(const char* message) {
+  if(Serial) {
+    Serial.print("Displaying Error: ");
+    Serial.println(message);
+  }
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  display.getTextBounds(message, 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t x = ((display.width() - tbw) / 2) - tbx;
+  uint16_t y = (display.height() - tbh);
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    display.drawBitmap(display.width()/2 - 20, 20, error_icon, 48, 48, GxEPD_BLACK);
+    display.setCursor(x,y);
+    display.print(message);
+  }
+  while (display.nextPage());
+  while(true) {
+    // TODO: prevent screen timeout in this situation
+    if(manageLoop() || WiFi.status() == WL_CONNECTED) return;
+  }
 }

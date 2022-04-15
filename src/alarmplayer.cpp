@@ -18,7 +18,7 @@ TODO: manage collisions if two alarms playing at the same time
   "The Cowboys"
 };*/
 
-int alarmTimeout = 60000;
+int alarmTimeout = 180000;
 int snoozeTime = 600000;
 bool alarmIsPlaying = false;
 

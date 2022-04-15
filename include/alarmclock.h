@@ -35,14 +35,9 @@
 #define LED_1 26
 #define TOUCH 27
 
-void setupWiFi();
-void WiFiConnect();
-void WiFiStationConnected();
-void WiFiStationDisconnected();
-void WiFiScan();
-
 void testSetup();
 
+void hitSnooze();
 bool manageLoop();
 
 void startNightLight();
@@ -97,5 +92,6 @@ void mathSnoozeLoop(Alarm& currentAlarm);
 void mathSnoozeDisplay(bool partial, const String& equation, const String (&solutions)[3], const int selection);
 
 void displayPopup(const char* message);
+void displayError(const char* error);
 
 #endif

@@ -43,6 +43,7 @@ void AlarmGroup::remove(int idx) {
 
 // Turns off any alarms in the group that are going off
 void AlarmGroup::hitOff() {
+  Serial.println("Turning off alarms");
   for(int i = 0; i < _size; i++) {
     if(_arr[i]->ap.alarmEnabled) _arr[i]->turnOff();
   }

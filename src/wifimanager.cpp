@@ -12,60 +12,9 @@ WiFiManager::WiFiManager(const String hostname) {
     _password = "red66dog";
 }
 
-void WiFiManager::connect() {
-  long startTime = millis();
-  Serial.printf("Connecting to %s ", _ssid.c_str());
-  WiFi.begin(_ssid.c_str(), _password.c_str());
-  while (WiFi.status() != WL_CONNECTED) {
-      if(millis() - startTime > 5000) {
-        Serial.println(" DISCONNECTED");
-        return;
-      }
-      delay(500);
-      Serial.print(".");
-  }
-  Serial.println(" CONNECTED");
-}
-
-void WiFiManager::scan() {
-  Serial.println("scan start");
-
-  // WiFi.scanNetworks will return the number of networks found
-  int n = WiFi.scanNetworks();
-  Serial.println("scan done");
-  if (n == 0) {
-      Serial.println("no networks found");
-  } else {
-      Serial.print(n);
-      Serial.println(" networks found");
-      for (int i = 0; i < n; ++i) {
-          // Print SSID and RSSI for each network found
-          Serial.print(i + 1);
-          Serial.print(": ");
-          Serial.print(WiFi.SSID(i));
-          Serial.print(" (");
-          Serial.print(WiFi.RSSI(i));
-          Serial.print(")");
-          Serial.println((WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?" ":"*");
-          delay(10);
-      }
-  }
-  Serial.println("");
-}
-
-void WiFiManager::setup3() {
-  WiFi.mode(WIFI_STA);
-  WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
-  WiFi.setHostname(_hostname.c_str());
-  //WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
-  //WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
-  scan();
-  connect();
-}
-
-bool WiFiManager::connect2(const char* ssid, const char* password) {
+bool WiFiManager::connectSpecific(const char* ssid, const char* password) {
     long startTime = millis();
-    Serial.printf("Connecting to %s ", ssid);
+    Serial.printf("Connecting to %s, password %s", ssid, password);
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
         if(millis() - startTime > 5000) {
@@ -79,7 +28,7 @@ bool WiFiManager::connect2(const char* ssid, const char* password) {
     return true;
 }
 
-bool WiFiManager::connect2(const char* ssid) {
+bool WiFiManager::connectSpecific(const char* ssid) {
     long startTime = millis();
     Serial.printf("Connecting to %s ", ssid);
     WiFi.begin(ssid);
@@ -95,65 +44,20 @@ bool WiFiManager::connect2(const char* ssid) {
     return true;
 }
 
-void WiFiManager::setup2() {
-
-    WiFi.mode(WIFI_STA);
-    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
-    WiFi.setHostname(_hostname.c_str());
-
-    int n = WiFi.scanNetworks();
-    if(n <= 0) Serial.println("No networks to connect to!");
+bool WiFiManager::connectGeneral(fs::FS &fs) {
 
     bool success = false;
     bool knownNetwork = false;
-
-    for(int i = 0; i < n && !success; i++) {
-        if(WiFi.SSID(i) == _ssid) {
-            knownNetwork = true;
-            success = connect2(_ssid.c_str(), _password.c_str());
-        }
-    }
-
-    if(!knownNetwork) Serial.println("No known networks");
-    else if(!success) Serial.println("Cannot connect to known networks!");
-
-    // If could not connect to saved network, check for open networks
-    if(WiFi.status() != WL_CONNECTED) {
-        for(int i = 0; i < n && !success; i++) {
-            if(WiFi.encryptionType(i) == WIFI_AUTH_OPEN) {
-                success = connect2(WiFi.SSID(i).c_str());
-            }
-        }
-    }
-
-    if(!success) Serial.println("Could not connect to network!");
-}
-
-void WiFiManager::onDisconnect(WiFiEvent_t event, WiFiEventInfo_t info){
-  Serial.println("Disconnected from WiFi access point");
-  Serial.print("WiFi lost connection. Reason: ");
-  Serial.println(info.disconnected.reason);
-  //Serial.println("Trying to Reconnect");
-  //WiFi.begin(_ssid, _password);
-}
-
-void WiFiManager::setup(fs::FS &fs) {
-
-    bool success = false;
-    bool knownNetwork = false;
-
-    WiFi.mode(WIFI_STA);
-    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
-    WiFi.setHostname(_hostname.c_str());
 
     int n = WiFi.scanNetworks();
     if(n <= 0) {
         Serial.println("No networks to connect to!");
-        return;
+        return false;
     }
 
     if (!SPIFFS.begin(true)) {
         Serial.println("An error has occurred while mounting SPIFFS");
+        return false;
     } else {
         Serial.println("SPIFFS mounted successfully");
     }
@@ -162,7 +66,7 @@ void WiFiManager::setup(fs::FS &fs) {
     File file = fs.open("/wifi.csv");
     if(!file || file.isDirectory()) {
         Serial.println("- failed to open file for reading");
-        return;
+        return false;
     }
 
     file.readStringUntil('\n'); // Discard first line
@@ -172,7 +76,11 @@ void WiFiManager::setup(fs::FS &fs) {
         for(int i = 0; i < n && !success; i++) {
             if(WiFi.SSID(i) == ssid) {
                 knownNetwork = true;
-                success = connect2(ssid.c_str(), pass.c_str());
+                success = connectSpecific(ssid.c_str(), pass.c_str());
+                if(success) {
+                    _ssid = ssid;
+                    _password = pass;
+                }
             }
         }
     }
@@ -185,56 +93,87 @@ void WiFiManager::setup(fs::FS &fs) {
     if(WiFi.status() != WL_CONNECTED) {
         for(int i = 0; i < n && !success; i++) {
             if(WiFi.encryptionType(i) == WIFI_AUTH_OPEN) {
-                success = connect2(WiFi.SSID(i).c_str());
+                success = connectSpecific(WiFi.SSID(i).c_str());
+                if(success) {
+                    _ssid = WiFi.SSID(i);
+                    _password.clear();
+                }
             }
         }
     }
 
-    if(!success) Serial.println("Could not connect to network!");
+    if(!success) {
+        Serial.println("Could not connect to network!");
+        return false;
+    } else {
+        return true;
+    }
 }
 
-/* ==================== CSV CLASS ========================== */
-
-CSV::CSV(const char* path) {
-    _path = path;
+/*void WiFiManager::onDisconnect(WiFiEvent_t event, WiFiEventInfo_t info){
+  Serial.println("Disconnected from WiFi access point");
+  Serial.print("WiFi lost connection. Reason: ");
+  Serial.println(info.disconnected.reason);
+  Serial.println("Trying to Reconnect");
+  _disconnectTime = millis();
+  if(_password.length() != 0) connectSpecific(_ssid.c_str(), _password.c_str());
+  else connectSpecific(_ssid.c_str());
 }
 
-void CSV::initSPIFFS() {
-  if (!SPIFFS.begin(true)) {
-    Serial.println("An error has occurred while mounting SPIFFS");
-  }
-  Serial.println("SPIFFS mounted successfully");
+void WiFiManager::onConnect(WiFiEvent_t event, WiFiEventInfo_t info){
+  //Serial.println("Disconnected from WiFi access point");
+  //Serial.print("WiFi lost connection. Reason: ");
+  //Serial.println(info.disconnected.reason);
+  _disconnectTime = 0;
+}*/
+
+void WiFiManager::setup() {
+
+    WiFi.mode(WIFI_STA);
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
+    WiFi.setHostname(_hostname.c_str());
+
+    //WiFi.onEvent(onDisconnect, SYSTEM_EVENT_STA_DISCONNECTED);
+
+    connectGeneral(SPIFFS);
+
+    //WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
+    //WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
 }
 
-void CSV::print(fs::FS &fs) {
-    Serial.printf("Reading file: %s\r\n", _path);
-    File file = fs.open(_path);
-    if(!file || file.isDirectory()) {
-        Serial.println("- failed to open file for reading");
+void WiFiManager::addNetwork(fs::FS &fs, const char* ssid, const char* password) {
+    // TODO: Do I need to do this in every one?
+    // TODO: Should only add to network if know the password is connect
+    if (!SPIFFS.begin(true)) {
+        Serial.println("An error has occurred while mounting SPIFFS");
         return;
+    } else {
+        Serial.println("SPIFFS mounted successfully");
     }
-    Serial.println("");
-    while(file.available()) {
-        Serial.write(file.read());
-    }
-    file.close();
-    Serial.println("");
-}
-
-void CSV::addLine(fs::FS &fs, const String& line) {
-    Serial.printf("Appending to file: %s\r\n", _path);
-    File file = fs.open(_path, FILE_APPEND);
+    Serial.printf("Appending to file: /wifi.csv\n");
+    File file = fs.open("/wifi.csv", FILE_APPEND);
     if(!file){
         Serial.println("- failed to open file for appending");
         return;
     }
+    String line;
+    line.concat(ssid);
+    line.concat(',');
+    line.concat(password);
+    line.concat('\n');
     if(file.print(line)){
         Serial.println("- line appended");
     } else {
         Serial.println("- append failed");
     }
-    if(line.charAt(line.length()-1) != '\n') {
-        file.print("\n");
-    }
+    file.close();
 }
+
+unsigned long WiFiManager::timeDisconnected() {
+    if(WiFi.status() == WL_CONNECTED) return 0;
+    else return millis() - _disconnectTime;
+}
+
+
+
 

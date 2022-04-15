@@ -381,7 +381,7 @@ void deliverWebpage() {
 
 WiFiManager wifi_manager("IOT Alarm Clock");
 
-CSV wifi_csv("/wifi.csv");
+//CSV wifi_csv("/wifi.csv");
 
 
 void IRAM_ATTR readEncoderISR()
@@ -416,7 +416,7 @@ void setup() {
 
   //wifi_manager.setup2();
 
-  wifi_manager.setup3(SPIFFS);
+  wifi_manager.setup();
 
   //wifi_csv.initSPIFFS();
   //wifi_csv.print(SPIFFS);
@@ -441,10 +441,10 @@ void setup() {
   stopTrack();
 
   //testSetup();
-  alarmgroup.add();
+  /*alarmgroup.add();
   alarmgroup.at(0)->active = true;
   alarmgroup.at(0)->hour = 13;
-  alarmgroup.at(0)->minute = 23;
+  alarmgroup.at(0)->minute = 23;*/
 
   rotaryEncoder.begin();
   rotaryEncoder.setup(readEncoderISR);
@@ -454,6 +454,9 @@ void setup() {
   touchAttachInterrupt(TOUCH, hitSnooze, threshold);
 
   randomSeed(analogRead(39));
+
+  alarmgroup.printFile(SPIFFS);
+  alarmgroup.readFile();
 }
 
 /*void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
@@ -1240,6 +1243,7 @@ void alarmSettingsLoop(Alarm& currentAlarm) {
         case 4:
           screen = main_menu_scr;
           alarmgroup.remove(currentSelectedAlarmIdx); // HACK: mixing global and local
+          alarmgroup.writeToFile();
           return;
       }
     }
@@ -1348,6 +1352,7 @@ void alarmSettings2Loop(Alarm& currentAlarm) {
           break;
         case 8:
           screen = main_menu_scr;
+          alarmgroup.writeToFile();
           return;
         default: break;
       }
@@ -1527,7 +1532,6 @@ void displayList(bool partial, int top, const char* title, void (*printLine)(int
 }
 
 /* =========================== MATH SNOOZE SELECTION =========================== */
-#pragma region Math Snooze Selection
 
 void mathSnoozeLoop(Alarm& currentAlarm) {
 
@@ -1636,8 +1640,6 @@ void mathSnoozeDisplay(bool partial, const String& equation, const String (&solu
   }
   while (display.nextPage());
 }
-
-#pragma endregion
 
 /* =========================== POPUP =========================== */
 // Display temporary message

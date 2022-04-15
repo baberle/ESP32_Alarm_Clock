@@ -8,30 +8,18 @@ class WiFiManager {
     String _hostname;
     String _ssid;
     String _password;
-    void onDisconnect(WiFiEvent_t event, WiFiEventInfo_t info);
-    bool connect2(const char* ssid, const char* password);
-    bool connect2(const char* ssid);
+    unsigned long _disconnectTime;
+    //void onDisconnect(WiFiEvent_t event, WiFiEventInfo_t info);
+    //void onConnect(WiFiEvent_t event, WiFiEvent_t info);
+    bool connectSpecific(const char* ssid, const char* password);
+    bool connectSpecific(const char* ssid);
+    bool connectGeneral(fs::FS &fs);
     public:
     WiFiManager();
     WiFiManager(String hostname);
-    void connect();
-    void scan(); 
-    void setup3();
-    void setup2();
-    void setup(fs::FS &fs);
-};
-
-class CSV {
-    const char* _path;
-    public:
-    void initSPIFFS();
-    CSV(const char* path);
-    // TOOD: add a destructor
-    void print(fs::FS &fs);
-    void addLine(fs::FS &fs, const String& line);
-    //String readLine();
-    //void deleteLine();
-    //void replaceLine();
+    void setup();
+    void addNetwork(fs::FS &fs, const char* ssid, const char* password);
+    unsigned long timeDisconnected();
 };
 
 #endif

@@ -19,7 +19,6 @@ enum Screen {
   time_settings_scr
 };
 Screen screen = clock_scr;
-//Screen screen = alarms_scr;
 unsigned long timeSinceLastAction = millis();
 
 AlarmGroup alarmgroup;
@@ -27,16 +26,10 @@ Alarm* currentSelectedAlarm;
 int currentSelectedAlarmIdx;
 Alarm* alarmGoingOff;
 
-/*const char *ssid     = "WirelessNW_2.4";
-const char *password = "red66dog";*/
-/*const char *ssid = "bphone";
-const char *password = "espnetwork";*/
-
 const char* ntpServer = "pool.ntp.org";
 long  gmtOffset_sec = -18000;
 int   daylightOffset_sec = 3600;
 
-// TODO: Should probably store this in flash
 const char* timeZoneDescription[31] = {
   "Greenwich Mean",
   "European Central",
@@ -112,9 +105,6 @@ const int timeZoneOffset[31] = {
 //    this could include IDE, microcontroller, microcontroller settings, coding style,
 //    other choices for components (slow refresh time)
 
-const char* hostname = "ESP32 Alarm Clock";
-const bool WiFiEnabled = true;
-
 AiEsp32RotaryEncoder rotaryEncoder = AiEsp32RotaryEncoder(ROTARY_ENCODER_A_PIN, ROTARY_ENCODER_B_PIN, ROTARY_ENCODER_BUTTON_PIN, ROTARY_ENCODER_VCC_PIN, ROTARY_ENCODER_STEPS);
 
 GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display(GxEPD2_290(EINK_CS, EINK_DC, EINK_RST, EINK_BUSY)); // GDEH029A1 128x296
@@ -158,24 +148,6 @@ void setup() {
 
   drawLoading();
 
-  /*initSPIFFS();
-
-  ssid = readFile(SPIFFS, ssidPath);
-  pass = readFile(SPIFFS, passPath);
-  ip = readFile(SPIFFS, ipPath);
-  gateway = readFile (SPIFFS, gatewayPath);
-  Serial.println(ssid);
-  Serial.println(pass);
-  Serial.println(ip);
-  Serial.println(gateway);
-
-  deliverWebpage();*/
-
-
-  //wifi_manager.setup2();
-
-  //wifi_manager.setup();
-
   setupWiFi();
   if(inApMode()) {
     displayApMode(getIpAddr().c_str());
@@ -190,66 +162,29 @@ void setup() {
 
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
-  //setupWiFi();
 
   setupDFPlayer();
   stopTrack();
 
-  //testSetup();
-  /*alarmgroup.add();
-  alarmgroup.at(0)->active = true;
-  alarmgroup.at(0)->hour = 13;
-  alarmgroup.at(0)->minute = 23;*/
 
   rotaryEncoder.begin();
   rotaryEncoder.setup(readEncoderISR);
   rotaryEncoder.setBoundaries(0, 1000, false); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
   rotaryEncoder.setAcceleration(100); 
 
-  //touchAttachInterrupt(TOUCH, hitSnooze, threshold);
 
   randomSeed(analogRead(39));
+
 
   alarmgroup.printFile(SPIFFS);
   alarmgroup.readFile();
 }
 
-void testSetup() {
 
-  alarmgroup.add();
-  alarmgroup.add();
-  alarmgroup.add();
-  alarmgroup.add();
-
-  alarmgroup.at(0)->active = true;
-  alarmgroup.at(0)->hour = 19;
-  alarmgroup.at(0)->minute = 40;
-  alarmgroup.at(0)->day[1] = false;
-  alarmgroup.at(0)->day[2] = false;
-
-  alarmgroup.at(1)->active = true;
-  alarmgroup.at(1)->hour = 11;
-  alarmgroup.at(1)->minute = 46;
-  alarmgroup.at(1)->day[0] = false;
-  alarmgroup.at(1)->day[6] = false;
-  alarmgroup.at(1)->snooze = math;
-
-  alarmgroup.at(2)->active = true;
-  alarmgroup.at(2)->hour = 2;
-  alarmgroup.at(2)->minute = 30;
-  alarmgroup.at(2)->day[1] = false;
-  alarmgroup.at(2)->day[2] = false;
-  alarmgroup.at(2)->day[3] = false;
-  alarmgroup.at(2)->day[4] = false;
-  alarmgroup.at(2)->day[5] = false;
-
-}
-
+// The main loop is only used to switch between screens, all functions 
+// that need to be called in a loop should be called in the manageLoop() function
 void loop() 
 {
-  
-  //manageLoop();
-
   switch(screen) {
     case clock_scr:
       mainTimeDisplayLoop();
@@ -282,23 +217,11 @@ void loop()
       timeSettingsLoop();
       break;
   } 
-
 }
 
 unsigned long touchDelay = 0;
 //bool alarmIsPlaying = false;
 bool hold = false;
-
-/*void hitSnooze() {
-  Serial.println("Touch detected");
-  //if(alarmGoingOff != NULL && )
-  /*if(millis() - touchDelay > 1000) {
-    alarmgroup.hitSnooze();
-  }*/
-/*
-  alarmgroup.hitOff();
-  backlight.startMomentary();
-}*/
 
 bool backlightOnBefore = false;
 bool alarmOnBefore = false;
@@ -307,22 +230,6 @@ bool alarmSnoozed = false;
 
 unsigned long timeSinceStart;
 bool pressed = false;
-
-/*if(touchRead(TOUCH) > threshold) {
-  backlight.startMomentary();
-  if(pressed && millis() - timeSinceStart > 3000) {
-    alarmgroup.hitOff();
-    timeSinceStart = millis();
-  } else {
-    pressed = true;
-    timeSinceStart = millis();
-  }
-} else {
-  if(pressed) {
-    pressed = false;
-    alarmgroup.hitSnooze();
-  }
-}*/
 
 
 // TODO: not everything in here has to be checked every loop; maybe split it up a bit
@@ -491,11 +398,10 @@ void mainTimeDisplayLoop() {
 
 // Draws the wifi icon at the top of the screen according to the wifi status
 void drawWiFiIcon() {
-  if(!WiFiEnabled) {
-    display.drawBitmap(296-24-1, 1, wifi_airplane_mode, 24, 24, GxEPD_BLACK);
+  if(inApMode()) {
+    display.drawBitmap(296-24-1, 1, router_icon, 24, 24, GxEPD_BLACK);
   } else {
-      if (WiFi.status() == WL_CONNECTED) 
-    {
+    if (WiFi.status() == WL_CONNECTED) {
       display.drawBitmap(296-24-1, 1, wifi_connected, 24, 24, GxEPD_BLACK);
     } else {
       display.drawBitmap(296-24-1, 1, wifi_disconnected, 24, 24, GxEPD_BLACK);
@@ -503,7 +409,7 @@ void drawWiFiIcon() {
   }
 }
 
-// Draws the alarm icon at the top of the screen
+// Draws the alarm icon at the top of the screen if any alarms are active
 void drawAlarmIcon() {
   for(int i = 0; i < alarmgroup.size(); i++) {
     if(alarmgroup.at(i)->active) {

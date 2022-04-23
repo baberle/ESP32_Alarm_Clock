@@ -36,8 +36,10 @@ bool Alarm::checkAlarm(tm &timeinfo) {
                 // TODO: do checking if other alarms are playing here
             }
         }
-    } 
+    }
+    // TODO: return true also if ap is playing? Undefined behavior if alarm goes off naturally
     ap.manageAlarmPlayer();
+    if(ap.alarmEnabled) return true;
   }
   return false;
 } 
@@ -140,8 +142,8 @@ void Alarm::printThis() const {
   Serial.println((active ? "true" : "false"));
   Serial.print("Already Played: ");
   Serial.println((alreadyPlayed ? "true" : "false"));
-  Serial.println("Snooze: ");
-  Serial.print(snooze);
+  Serial.print("Snooze: ");
+  Serial.println(snooze);
   Serial.print("Time: ");
   Serial.print(hour);
   Serial.print(":");

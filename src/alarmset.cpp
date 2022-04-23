@@ -45,14 +45,15 @@ void AlarmGroup::remove(int idx) {
 void AlarmGroup::hitOff() {
   Serial.println("Turning off alarms");
   for(int i = 0; i < _size; i++) {
-    if(_arr[i]->ap.alarmEnabled) _arr[i]->turnOff();
+    if(_arr[i]->ap.alarmEnabled  && _arr[i]->snooze != math) _arr[i]->turnOff();
   }
 }
 
 // Snoozes any alarms in the group that are going off
 void AlarmGroup::hitSnooze() {
+  Serial.println("Snoozing alarms");
   for(int i = 0; i < _size; i++) {
-    if(_arr[i]->ap.alarmEnabled) _arr[i]->snoozeAlarm();
+    if(_arr[i]->ap.alarmEnabled && _arr[i]->snooze == on) _arr[i]->ap.snoozeAlarmPlayer();
   }
 }
 
@@ -153,12 +154,12 @@ void AlarmGroup::readLine(String& line) {
     return out.toInt();
   };*/
   auto popNextProperty = [](String& line) {
-    Serial.print("Line: ");
-    Serial.print(line);
+    //Serial.print("Line: ");
+    //Serial.print(line);
     String out = "";
     while(!line.isEmpty()) {
       char c = line[0];
-      Serial.printf(" char-%c", c);
+      //Serial.printf(" char-%c", c);
       if(c == ',' || c == '\n') {
         line.remove(0,1);
         break;
@@ -167,8 +168,8 @@ void AlarmGroup::readLine(String& line) {
         line.remove(0,1);
       }
     }
-    Serial.print(" Got: ");
-    Serial.println(out);
+    //Serial.print(" Got: ");
+    //Serial.println(out);
     return out.toInt();
   };
   if(popNextProperty(line) == 0) return;
@@ -185,8 +186,8 @@ void AlarmGroup::readLine(String& line) {
   al->day[6] = popNextProperty(line);
   al->ap.track = popNextProperty(line);
   switch(popNextProperty(line)) {
-    case(0): al->snooze = on; break;
-    case(1): al->snooze = off; break;
+    case(1): al->snooze = on; break;
+    case(0): al->snooze = off; break;
     case(2): al->snooze = math; break;
   }
 }
@@ -210,15 +211,8 @@ void AlarmGroup::readFile() {
   
   // Add all alarms stored in file
   String test = file.readStringUntil('\n'); // remove title line
-  for(char c : test) {
-    //Serial.print(" char-"); Serial.print(c);
-    test.remove(0,1);
-    Serial.println(test);
-  }
   while(file.available()) {
     String line = file.readStringUntil('\n');
-    Serial.print("Loading: ");
-    Serial.println(line);
     readLine(line);
   }
 

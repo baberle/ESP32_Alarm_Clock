@@ -175,13 +175,9 @@ void setup() {
 
   //wifi_manager.setup();
 
-  bool connected = true;
-  // TODO: should return bool
   setupWiFi();
-
-  if(!connected) {
-    displayError("Could not connect to WiFi");
-    // TODO: this will just be overwritter
+  if(inApMode()) {
+    displayApMode(getIpAddr().c_str());
   }
 
   // TODO: should maybe also read this way and not store in global var?
@@ -209,7 +205,7 @@ void setup() {
   rotaryEncoder.setBoundaries(0, 1000, false); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
   rotaryEncoder.setAcceleration(100); 
 
-  touchAttachInterrupt(TOUCH, hitSnooze, threshold);
+  //touchAttachInterrupt(TOUCH, hitSnooze, threshold);
 
   randomSeed(analogRead(39));
 
@@ -292,20 +288,41 @@ unsigned long touchDelay = 0;
 //bool alarmIsPlaying = false;
 bool hold = false;
 
-void hitSnooze() {
+/*void hitSnooze() {
   Serial.println("Touch detected");
   //if(alarmGoingOff != NULL && )
   /*if(millis() - touchDelay > 1000) {
     alarmgroup.hitSnooze();
   }*/
-
+/*
   alarmgroup.hitOff();
   backlight.startMomentary();
-}
+}*/
 
 bool backlightOnBefore = false;
 bool alarmOnBefore = false;
-bool alreadyTurnedOff = false;
+bool alreadyTurnedOff = true;
+bool alarmSnoozed = false;
+
+unsigned long timeSinceStart;
+bool pressed = false;
+
+/*if(touchRead(TOUCH) > threshold) {
+  backlight.startMomentary();
+  if(pressed && millis() - timeSinceStart > 3000) {
+    alarmgroup.hitOff();
+    timeSinceStart = millis();
+  } else {
+    pressed = true;
+    timeSinceStart = millis();
+  }
+} else {
+  if(pressed) {
+    pressed = false;
+    alarmgroup.hitSnooze();
+  }
+}*/
+
 
 // TODO: not everything in here has to be checked every loop; maybe split it up a bit
 bool manageLoop() {
@@ -320,20 +337,52 @@ bool manageLoop() {
     return false;
   }
 
+  // Goes in never ending loop
   Alarm* returnAlarm = alarmgroup.checkAll(timeinfo);
-  if(returnAlarm != nullptr && !alarmOnBefore) {
+  /*if(returnAlarm != nullptr && !alarmOnBefore) {
+    Serial.println("First time alarm going off");
     alreadyTurnedOff = false;
     alarmGoingOff = returnAlarm;
     alarmOnBefore = true;
     backlightOnBefore = backlight.getState();
     backlight.turnOn();
     if(returnAlarm->snooze == math) {
+      // TODO: When alarm goes off this should disappear
       screen = snooze_math_scr;
       rVal = true;
     }
-  } else if(!alreadyTurnedOff && returnAlarm != nullptr) {
+  } else if(!alreadyTurnedOff && (returnAlarm == nullptr || returnAlarm->ap.snoozed)) {
+    Serial.println("Last time alarm going off");
     if(!backlightOnBefore) backlight.turnOff();
     alreadyTurnedOff = true;
+    alarmOnBefore = false;
+  }*/
+
+  /*if(returnAlarm != nullptr && returnAlarm->ap.snoozed) {
+    if(backlight.getState()) backlight.turnOff();
+  } else if(returnAlarm != nullptr && returnAlarm->ap.alarmEnabled && !alarmOnBefore) {
+    alarmOnBefore = true;
+    if(!backlight.getState()) backlight.turnOn();
+  } else if(returnAlarm == nullptr) {
+    if(!backlightOnBefore) backlight.turnOff();
+    alarmOnBefore = false;
+  }*/
+
+  const int holdToTurnOff = 5000;
+  if(touchRead(TOUCH) < threshold) {
+    backlight.startMomentary();
+    if(pressed && millis() - timeSinceStart > holdToTurnOff) {
+      alarmgroup.hitOff();
+      timeSinceStart = millis();
+    } else if(!pressed) {
+      pressed = true;
+      timeSinceStart = millis();
+    }
+  } else {
+    if(pressed) {
+      pressed = false;
+      alarmgroup.hitSnooze();
+    }
   }
 
   backlight.manageBacklight();
@@ -341,6 +390,7 @@ bool manageLoop() {
   if(checkScreenTimeout()) rVal = true;
 
   // ESP32 will be about 52 seconds off after 30 days
+  // Display error after this time
   unsigned long innacurateAfter = 2592000000;
   if(timeDisconnected() != 0) {
     unsigned long duration;
@@ -751,14 +801,13 @@ void mainSettingsLoop() {
 
   if(Serial) Serial.println("Displaying settings menu");
 
-  rotaryEncoder.setBoundaries(0, 3, false);
+  rotaryEncoder.setBoundaries(0, 2, false);
   rotaryEncoder.setEncoderValue(0);
   displayMainSettings(false);
   timeSinceLastAction = millis();
 
   while(true) {
 
-    //if(checkScreenTimeout()) return;
     if(manageLoop()) return;
 
     if(rotaryEncoder.encoderChanged()) {
@@ -768,21 +817,17 @@ void mainSettingsLoop() {
     
     if(rotaryEncoder.isEncoderButtonClicked()) {
       switch(rotaryEncoder.readEncoder()) {
-        case 0:
-          militaryTime = !militaryTime;
-          pref.putBool("mil",militaryTime);
-          displayMainSettings(true);
+        case 0: 
           break;
         case 1:
-          screen = timezone_scr;
-          return;
-        case 2:
+          break;
+        case 1:
           if(backlight.getState()) backlight.turnOff();
           else backlight.turnOn();
           pref.putBool("light", backlight.getState());
           displayMainSettings(true);
           break;
-        case 3:
+        case 2:
           screen = main_menu_scr;
           return;
       }
@@ -804,20 +849,21 @@ void displayMainSettings(bool partial) {
     displayTitle("Settings");
     
     display.setCursor(30, 22*2);
-    if(militaryTime) {
-      display.print("24 Hour Time: ON");
-    } else {
-      display.print("24 Hour Time: OFF");
-    }    
-    
-    display.setCursor(30, 22*3);
-    display.print("Change Timezone");
+    if(WiFi.status() == WL_CONNECTED) display.print("Wi-Fi: Connected");
+    else if(inApMode()) display.print("Wi-Fi: Access Point");
+    else display.print("Wi-Fi: Disconnected");
+
+    display.setCursor(30, 22*2);
+    if(WiFi.status() == WL_CONNECTED) display.print("Wi-Fi: Connected");
+    else if(inApMode()) display.print("Wi-Fi: Access Point");
+    else display.print("Wi-Fi: Disconnected");
     
     display.setCursor(30, 22*4);
-    if(backlight.getState()) {
-      display.print("Night Light: ON");
+    if(inApMode()) {
+      String str = "AP Mode: " + getIpAddr();
+      display.print(str);
     } else {
-      display.print("Night Light: OFF");
+      display.print("AP Mode: --");
     } 
     
     display.setCursor(30, 22*5);
@@ -828,7 +874,7 @@ void displayMainSettings(bool partial) {
   displayMenuSelectionIndicator(rotaryEncoder.readEncoder());
 }
 
-/* =========================== MAIN SETTIGNS SCREEN =========================== */
+/* =========================== TIME SETTINGS SCREEN =========================== */
 
 
 void timeSettingsLoop() {
@@ -1424,7 +1470,7 @@ void displayError(const char* message) {
   do
   {
     display.fillScreen(GxEPD_WHITE);
-    display.drawBitmap(display.width()/2 - 20, 20, error_icon, 48, 48, GxEPD_BLACK);
+    display.drawBitmap(display.width()/2 - 48/2, 20, error_icon, 48, 48, GxEPD_BLACK);
     display.setCursor(x,y);
     display.print(message);
   }
@@ -1434,3 +1480,40 @@ void displayError(const char* message) {
     if(manageLoop() || WiFi.status() == WL_CONNECTED) return;
   }
 }
+
+/* =========================== AP MODE MESSAGE =========================== */
+
+void displayApMode(const char* ipAddr) {
+  if(Serial) Serial.print("Displaying AP mode message");
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    displayTitle("Wi-Fi Connection Failed");
+    display.drawBitmap(10, 24 + (display.height()-24)/2 - 48/2, error_wifi_icon, 48, 48, GxEPD_BLACK);
+
+    display.setCursor(68,48);
+    display.print("1. Connect to alarm");
+    display.setCursor(100,66);
+    display.print("clock over wifi");
+
+    display.setCursor(68,96);
+    display.print("2. Go to");
+    display.setCursor(100,114);
+    display.print(ipAddr);
+  }
+  while (display.nextPage());
+  /*while(true) {
+    // TODO: prevent screen timeout in this situation
+    if(manageLoop() || WiFi.status() == WL_CONNECTED) return;
+  }*/
+  while(true);
+}
+
+/*
+
+Wi-Fi Connection Failed
+1. Connect to alarm clock from phone wifi
+2. Go to 'ip-address'
+
+*/

@@ -16,7 +16,7 @@ struct Alarm
     bool day[7];
     bool active;
     bool alreadyPlayed;
-    bool prevent;
+    bool prevent; // Enabled when editing the alarm
     SnoozeType snooze;
     AlarmPlayer ap;
     Alarm();

@@ -10,16 +10,9 @@ TODO: detect if sd card is inserted
 TODO: manage collisions if two alarms playing at the same time
 */
 
-// Each soundbyte should be 1 minute long and ramp from 0 to 15 volume in 10 seconds
-/*const char *fileTitles[4] = {
-  "Star Wars",
-  "Indiana Jones",
-  "Tintin",
-  "The Cowboys"
-};*/
-
 int alarmTimeout = 180000;
-int snoozeTime = 600000;
+//int snoozeTime = 600000;
+int snoozeTime = 60000;
 bool alarmIsPlaying = false;
 
 AlarmPlayer::AlarmPlayer(const int _track) {
@@ -53,6 +46,7 @@ void AlarmPlayer::stopAlarmPlayer() {
   if(Serial) Serial.println("Stopping alarm player");
   alarmEnabled = false;
   dfmp3.stop();
+  dfmp3.stop();
   dfmp3.setVolume(0);
 }
 
@@ -64,10 +58,9 @@ void AlarmPlayer::manageAlarmPlayer() {
       }
     } else
     if(millis() - startTime > alarmTimeout) {
-      alarmEnabled = false;
-      dfmp3.stop();
+      stopAlarmPlayer();
     } else 
-    if(millis() - volIncrease > 1500 && volume < 18) {
+    if(millis() - volIncrease > 1500 && volume < /*18*/10) {
       if(Serial) {
         Serial.print("Increasing volume from ");
         Serial.println(volume);

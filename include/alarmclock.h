@@ -93,5 +93,6 @@ void mathSnoozeDisplay(bool partial, const String& equation, const String (&solu
 
 void displayPopup(const char* message);
 void displayError(const char* error);
+void displayApMode(const char* ipAddr);
 
 #endif

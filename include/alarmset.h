@@ -13,7 +13,6 @@ class AlarmGroup {
   void writeLine(const Alarm* al, File& file) const;
   void readLine(String& line);
   public:
-  //AlarmGroup();
   ~AlarmGroup();
 
   int size() const { return _size; }

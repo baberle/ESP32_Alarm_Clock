@@ -25,12 +25,12 @@ class Backlight {
     public:
     Backlight() = delete;
     Backlight(const int pin, Channel& pwmChannel);
-    void backlightSetup();
+    void setup();
     bool getState() const;
     void turnOn();
     void turnOff();
     void startMomentary();
-    void manageBacklight();
+    void manage();
 };
 
 #endif

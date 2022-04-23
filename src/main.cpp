@@ -36,6 +36,7 @@ const char* ntpServer = "pool.ntp.org";
 long  gmtOffset_sec = -18000;
 int   daylightOffset_sec = 3600;
 
+// TODO: Should probably store this in flash
 const char* timeZoneDescription[31] = {
   "Greenwich Mean",
   "European Central",
@@ -385,7 +386,7 @@ bool manageLoop() {
     }
   }
 
-  backlight.manageBacklight();
+  backlight.manage();
 
   if(checkScreenTimeout()) rVal = true;
 
@@ -801,7 +802,7 @@ void mainSettingsLoop() {
 
   if(Serial) Serial.println("Displaying settings menu");
 
-  rotaryEncoder.setBoundaries(0, 2, false);
+  rotaryEncoder.setBoundaries(0, 3, false);
   rotaryEncoder.setEncoderValue(0);
   displayMainSettings(false);
   timeSinceLastAction = millis();
@@ -821,13 +822,13 @@ void mainSettingsLoop() {
           break;
         case 1:
           break;
-        case 1:
+        case 2:
           if(backlight.getState()) backlight.turnOff();
           else backlight.turnOn();
           pref.putBool("light", backlight.getState());
           displayMainSettings(true);
           break;
-        case 2:
+        case 3:
           screen = main_menu_scr;
           return;
       }
@@ -853,7 +854,7 @@ void displayMainSettings(bool partial) {
     else if(inApMode()) display.print("Wi-Fi: Access Point");
     else display.print("Wi-Fi: Disconnected");
 
-    display.setCursor(30, 22*2);
+    display.setCursor(30, 22*3);
     if(WiFi.status() == WL_CONNECTED) display.print("Wi-Fi: Connected");
     else if(inApMode()) display.print("Wi-Fi: Access Point");
     else display.print("Wi-Fi: Disconnected");

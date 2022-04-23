@@ -20,7 +20,8 @@ void Alarm::reset() {
   ap.track = 1;
 }
 
-// TODO: this should only go off once a minute even if the person hits snooze before the minute is up (keep snooze value in alarm player)
+// Starts the alarm if it should be going off and manages the alarm afterward
+// Should be checked every cycle
 bool Alarm::checkAlarm(tm &timeinfo) {
   if(active && !prevent) {
     if(alreadyPlayed) {
@@ -33,29 +34,32 @@ bool Alarm::checkAlarm(tm &timeinfo) {
                 printThis();
                 ap.startAlarmPlayer();
                 return true;
-                // TODO: do checking if other alarms are playing here
+                // TODO: May be undefined behavior if overlapping alarms
             }
         }
     }
-    // TODO: return true also if ap is playing? Undefined behavior if alarm goes off naturally
     ap.manageAlarmPlayer();
     if(ap.alarmEnabled) return true;
   }
   return false;
 } 
 
+
 void Alarm::turnOff() {
   ap.stopAlarmPlayer();
   alreadyPlayed = true;
 }
 
+
+// Takes minutes since the start of the day as input
 void Alarm::setTime(int amt) {
   hour = amt / 60;
   minute = amt % 60;
   alreadyPlayed = false;
 }
 
-// TODO: ensure it works for edge cases
+
+// Converts the alarm time to a string representation
 void Alarm::toString(bool militaryTime, char* timeString) const {
 
   if(militaryTime) {
@@ -66,7 +70,8 @@ void Alarm::toString(bool militaryTime, char* timeString) const {
     timeString[0] = newHour/10 + '0';
     if(timeString[0] == '0') timeString[0] = ' ';
     timeString[1] = newHour%10 + '0';
-    if(timeString[1] == '0') {
+    // hour 0 is actually hour 12
+    if(timeString[1] == '0' && timeString[0] == ' ') {
       timeString[0] = '1';
       timeString[1] = '2';
     }
@@ -95,6 +100,8 @@ void Alarm::toString(bool militaryTime, char* timeString) const {
 
 }
 
+
+// Converts the days the alarm is enabled for to a string representation
 void Alarm::toDayString(char* dayString) const {
 
   const char days[] = {'S','M','T','W','R','F','S'};
@@ -137,7 +144,9 @@ void Alarm::toDayString(char* dayString) const {
 
 }
 
+
 void Alarm::printThis() const {
+  if(!Serial) return;
   Serial.print("Active: ");
   Serial.println((active ? "true" : "false"));
   Serial.print("Already Played: ");

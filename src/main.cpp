@@ -26,9 +26,19 @@ Alarm* currentSelectedAlarm;
 int currentSelectedAlarmIdx;
 Alarm* alarmGoingOff;
 
+// time server and timezone values
 const char* ntpServer = "pool.ntp.org";
 long  gmtOffset_sec = -18000;
 int   daylightOffset_sec = 3600;
+
+// hold state to identify when alarm goes on and off
+bool backlightOnBefore = false;
+bool alarmOnBefore = false;
+bool alarmOffBefore = false;
+
+// holds state for snooze bar
+unsigned long timeSinceStart;
+bool pressed = false;
 
 const char* timeZoneDescription[31] = {
   "Greenwich Mean",
@@ -97,13 +107,8 @@ const int timeZoneOffset[31] = {
   -10800,
   -3600
 };
-// https://publib.boulder.ibm.com/tividd/td/TWS/SC32-1274-02/en_US/HTML/SRF_mst273.htm
+// Timezones taken from: https://publib.boulder.ibm.com/tividd/td/TWS/SC32-1274-02/en_US/HTML/SRF_mst273.htm
 
-// considerations, such as limiting number of alarms and making number of alarms static, because limited memory
-// consider alignment of structs to prevent wasted space
-// explanation of the different options and the benefits/downsides of each
-//    this could include IDE, microcontroller, microcontroller settings, coding style,
-//    other choices for components (slow refresh time)
 
 AiEsp32RotaryEncoder rotaryEncoder = AiEsp32RotaryEncoder(ROTARY_ENCODER_A_PIN, ROTARY_ENCODER_B_PIN, ROTARY_ENCODER_BUTTON_PIN, ROTARY_ENCODER_VCC_PIN, ROTARY_ENCODER_STEPS);
 
@@ -219,18 +224,6 @@ void loop()
   } 
 }
 
-unsigned long touchDelay = 0;
-//bool alarmIsPlaying = false;
-bool hold = false;
-
-bool backlightOnBefore = false;
-bool alarmOnBefore = false;
-bool alreadyTurnedOff = true;
-bool alarmSnoozed = false;
-
-unsigned long timeSinceStart;
-bool pressed = false;
-
 
 // TODO: not everything in here has to be checked every loop; maybe split it up a bit
 bool manageLoop() {
@@ -245,41 +238,37 @@ bool manageLoop() {
     return false;
   }
 
-  // Goes in never ending loop
+
   Alarm* returnAlarm = alarmgroup.checkAll(timeinfo);
-  /*if(returnAlarm != nullptr && !alarmOnBefore) {
-    Serial.println("First time alarm going off");
-    alreadyTurnedOff = false;
-    alarmGoingOff = returnAlarm;
+
+  // Load math screen if needed and not already loaded
+  if(returnAlarm != nullptr && returnAlarm->snooze == math && screen != snooze_math_scr) {
+    screen = snooze_math_scr;
+    rVal = true;
+  }
+
+  if(returnAlarm != nullptr && !alarmOnBefore) {
     alarmOnBefore = true;
+    alarmOffBefore = false;
     backlightOnBefore = backlight.getState();
     backlight.turnOn();
-    if(returnAlarm->snooze == math) {
-      // TODO: When alarm goes off this should disappear
-      screen = snooze_math_scr;
-      rVal = true;
-    }
-  } else if(!alreadyTurnedOff && (returnAlarm == nullptr || returnAlarm->ap.snoozed)) {
-    Serial.println("Last time alarm going off");
-    if(!backlightOnBefore) backlight.turnOff();
-    alreadyTurnedOff = true;
+    alarmGoingOff = returnAlarm;
+    Serial.println("Alarm went on!");
+  // TODO: turn off led while snoozing (if statement below should work but doesn't)
+  //} else if((returnAlarm == nullptr || (returnAlarm != nullptr && returnAlarm->ap.snoozed)) && !alarmOffBefore) {
+  } else if(returnAlarm == nullptr && !alarmOffBefore) {
     alarmOnBefore = false;
-  }*/
-
-  /*if(returnAlarm != nullptr && returnAlarm->ap.snoozed) {
-    if(backlight.getState()) backlight.turnOff();
-  } else if(returnAlarm != nullptr && returnAlarm->ap.alarmEnabled && !alarmOnBefore) {
-    alarmOnBefore = true;
-    if(!backlight.getState()) backlight.turnOn();
-  } else if(returnAlarm == nullptr) {
+    alarmOffBefore = true;
     if(!backlightOnBefore) backlight.turnOff();
-    alarmOnBefore = false;
-  }*/
+    Serial.println("Alarm went off!");
+  }
 
+  // Manage snooze bar behavior (momentary backlight, snooze, turn off)
+  // snooze and turning off alarm should not work on math screen
   const int holdToTurnOff = 5000;
   if(touchRead(TOUCH) < threshold) {
     backlight.startMomentary();
-    if(pressed && millis() - timeSinceStart > holdToTurnOff) {
+    if(pressed && millis() - timeSinceStart > holdToTurnOff && screen != snooze_math_scr) {
       alarmgroup.hitOff();
       timeSinceStart = millis();
     } else if(!pressed) {
@@ -287,7 +276,7 @@ bool manageLoop() {
       timeSinceStart = millis();
     }
   } else {
-    if(pressed) {
+    if(pressed && screen != snooze_math_scr) {
       pressed = false;
       alarmgroup.hitSnooze();
     }
@@ -298,7 +287,7 @@ bool manageLoop() {
   if(checkScreenTimeout()) rVal = true;
 
   // ESP32 will be about 52 seconds off after 30 days
-  // Display error after this time
+  // Display error screen if not reconnected after this time
   unsigned long innacurateAfter = 2592000000;
   if(timeDisconnected() != 0) {
     unsigned long duration;
@@ -1001,13 +990,11 @@ void alarmSettings2Loop(Alarm& currentAlarm) {
 
   while(true) {
 
-    //if(checkScreenTimeout()) return;
     if(manageLoop()) return;
 
     if(rotaryEncoder.encoderChanged()) {
       timeSinceLastAction = millis();
       if(changeTime) {
-        // TODO: bug on top boundary
         currentAlarm.setTime(rotaryEncoder.readEncoder()*5);
         displayAlarmSettings2(true, currentAlarm, 0, true);
       } else {

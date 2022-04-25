@@ -5,6 +5,7 @@ static bool inAPMode = false;
 static String _ssid;
 static String _password;
 static unsigned long _disconnectTime;
+static unsigned long _lastTimeReconnectAttempt;
 static const String _hostname = "esp32device";
 
 
@@ -13,7 +14,7 @@ static bool connectSpecific(const char* ssid, const char* password) {
     Serial.printf("Connecting to %s, password %s", ssid, password);
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
-        if(millis() - startTime > 5000) {
+        if(millis() - startTime > 10000) {
             Serial.println(" DISCONNECTED");
             return false;
         }
@@ -29,7 +30,7 @@ static bool connectSpecific(const char* ssid) {
     Serial.printf("Connecting to %s ", ssid);
     WiFi.begin(ssid);
     while (WiFi.status() != WL_CONNECTED) {
-        if(millis() - startTime > 5000) {
+        if(millis() - startTime > 10000) {
             Serial.println(" DISCONNECTED");
             return false;
         }
@@ -100,11 +101,13 @@ static bool connectGeneral(fs::FS &fs) {
 
     if(!success) {
         Serial.println("Could not connect to network!");
+        if(!knownNetwork) deliverWebpage();
         return false;
     } else {
         return true;
     }
 }
+
 
 static void onDisconnect(WiFiEvent_t event, WiFiEventInfo_t info){
   Serial.println("Disconnected from WiFi access point");
@@ -116,12 +119,11 @@ static void onDisconnect(WiFiEvent_t event, WiFiEventInfo_t info){
   else connectSpecific(_ssid.c_str());
 }
 
+
 static void onConnect(WiFiEvent_t event, WiFiEventInfo_t info){
-  //Serial.println("Disconnected from WiFi access point");
-  //Serial.print("WiFi lost connection. Reason: ");
-  //Serial.println(info.disconnected.reason);
   _disconnectTime = 0;
 }
+
 
 void setupWiFi() {
 
@@ -132,10 +134,11 @@ void setupWiFi() {
     WiFi.onEvent(onDisconnect, SYSTEM_EVENT_STA_DISCONNECTED);
     WiFi.onEvent(onConnect, SYSTEM_EVENT_STA_CONNECTED);
 
-    connectGeneral(SPIFFS);
+    bool successfulConnection = connectGeneral(SPIFFS);
 
-    //deliverWebpage();
+    if(!successfulConnection && !inApMode()) deliverWebpage();
 }
+
 
 void addNetwork(const char* ssid, const char* password) {
 
@@ -164,13 +167,33 @@ void addNetwork(const char* ssid, const char* password) {
     file.close();
 }
 
-unsigned long timeDisconnected() {
-    if(WiFi.status() == WL_CONNECTED) return 0;
-    else return millis() - _disconnectTime;
+
+void manageWiFi() {
+    if(inApMode()) return;
+    if(timeDisconnected() == 0) return;
+    if(timeDisconnected() >= 60*60*1000) {
+        // If Disconnected longer than 1 hour
+        deliverWebpage();
+    } else if(timeDisconnected() >= 10*60*1000 && _lastTimeReconnectAttempt - millis() >= 10*60*1000) {
+        // If disconnected longer than 10 minutes
+        // Every 10 minutes attempt reconnection
+        _lastTimeReconnectAttempt = millis();
+        connectGeneral(SPIFFS);
+    }
 }
 
+
+unsigned long timeDisconnected() {
+    if(WiFi.status() == WL_CONNECTED) return 0;
+    else return (millis() - _disconnectTime);
+}
+
+
 bool inApMode() { return inAPMode; }
+
+
 String getIpAddr() { return ipAddr.toString(); }
+
 
 String getSelectOptions(const String& var) {
 
@@ -189,6 +212,7 @@ String getSelectOptions(const String& var) {
 
     return out;
 }
+
 
 AsyncWebServer server(80);
 

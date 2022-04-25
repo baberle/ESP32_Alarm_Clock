@@ -8,6 +8,7 @@
 
 void setupWiFi();
 void addNetwork(const char* ssid, const char* password);
+void manageWiFi();
 unsigned long timeDisconnected();
 void deliverWebpage();
 bool inApMode();

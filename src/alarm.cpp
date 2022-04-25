@@ -1,5 +1,8 @@
 #include "alarm.h"
 
+/**
+ * Initialize the alarm with default values
+ */
 Alarm::Alarm() {
     hour = 12;
     minute = 0;
@@ -10,6 +13,9 @@ Alarm::Alarm() {
     ap.track = 1;
 }
 
+/**
+ * Resets the alarm to default values
+ */
 void Alarm::reset() {
   hour = 12;
   minute = 0;
@@ -20,8 +26,13 @@ void Alarm::reset() {
   ap.track = 1;
 }
 
-// Starts the alarm if it should be going off and manages the alarm afterward
-// Should be checked every cycle
+
+/**
+ * Starts the alarm if it should be going off and manages the alarm player
+ * otherwise. Should be checked every cycle.
+ * @param timeinfo time structure
+ * @returns true if alarm is playing
+ */
 bool Alarm::checkAlarm(tm &timeinfo) {
   if(active && !prevent) {
     if(alreadyPlayed) {
@@ -44,14 +55,19 @@ bool Alarm::checkAlarm(tm &timeinfo) {
   return false;
 } 
 
-
+/**
+ * Turns off the alarm
+ */
 void Alarm::turnOff() {
   ap.stopAlarmPlayer();
   alreadyPlayed = true;
 }
 
 
-// Takes minutes since the start of the day as input
+/**
+ * Sets the alarm time.
+ * @param amt minutes since the start of the day
+ */
 void Alarm::setTime(int amt) {
   hour = amt / 60;
   minute = amt % 60;
@@ -59,7 +75,12 @@ void Alarm::setTime(int amt) {
 }
 
 
-// Converts the alarm time to a string representation
+/**
+ * Converts the alarm time to a string representation
+ * @param militaryTime should time be in 24-hour format
+ * @param timeString where the representation will be placed, should
+ * be at least 10 characters long
+*/
 void Alarm::toString(bool militaryTime, char* timeString) const {
 
   if(militaryTime) {
@@ -101,7 +122,11 @@ void Alarm::toString(bool militaryTime, char* timeString) const {
 }
 
 
-// Converts the days the alarm is enabled for to a string representation
+/**
+ * Converts the days the alarm is enabled to a string representation
+ * @param dayString where the representation will be placed, should be at 
+ * 10 characters long
+ */
 void Alarm::toDayString(char* dayString) const {
 
   const char days[] = {'S','M','T','W','R','F','S'};
@@ -144,9 +169,10 @@ void Alarm::toDayString(char* dayString) const {
 
 }
 
-
+/**
+ * Prints the alarm contents out to the serial monitor
+ */
 void Alarm::printThis() const {
-  if(!Serial) return;
   Serial.print("Active: ");
   Serial.println((active ? "true" : "false"));
   Serial.print("Already Played: ");

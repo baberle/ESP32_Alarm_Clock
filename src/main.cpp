@@ -3,7 +3,11 @@
 Preferences pref;
 
 int prevMinute = 0;
-enum Change {none, full, partial};
+enum Change {
+  none, 
+  full, 
+  partial
+};
 bool militaryTime = false;
 
 enum Screen {
@@ -27,7 +31,7 @@ int currentSelectedAlarmIdx;
 Alarm* alarmGoingOff;
 
 // time server and timezone values
-const char* ntpServer = "pool.ntp.org";
+const char* ntpServer = "north-america.pool.ntp.org";
 long  gmtOffset_sec = -18000;
 int   daylightOffset_sec = 3600;
 
@@ -116,8 +120,6 @@ GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display(GxEPD2_290(EINK_CS, EINK_DC, E
 
 Channel ch1(0, 255, 8);
 Backlight backlight(LED_1, ch1);
-
-const int threshold = 40;
 
 const char *fileTitles[14] = {
   "Star Wars",
@@ -232,6 +234,8 @@ bool manageLoop() {
 
   manageDFPlayer();
 
+  manageWiFi();
+
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
     Serial.println("Failed to obtain time");
@@ -266,7 +270,7 @@ bool manageLoop() {
   // Manage snooze bar behavior (momentary backlight, snooze, turn off)
   // snooze and turning off alarm should not work on math screen
   const int holdToTurnOff = 5000;
-  if(touchRead(TOUCH) < threshold) {
+  if(touchRead(TOUCH) < 40) {
     backlight.startMomentary();
     if(pressed && millis() - timeSinceStart > holdToTurnOff && screen != snooze_math_scr) {
       alarmgroup.hitOff();
@@ -639,7 +643,6 @@ bool rowActionAlarms(const int row) {
   } else 
   if(row == alarmgroup.size()) {
     // Add new alarm logic
-    // TODO: go to alarm setting screen if room for another alarm
     Serial.println("Making new alarm");
     Alarm* newAlarm = alarmgroup.add();
     if(newAlarm != nullptr) {
@@ -673,7 +676,6 @@ void printLineTimezone(const int x, const int y, const int row) {
 }
 
 bool rowActionTimezone(const int row) {
-  // TODO: change timezone offset (with correct offset for daylight savings time)
   if(row < 0 || row > 30) return false;
   Serial.print("New offset is: ");
   Serial.println(timeZoneOffset[row]);
@@ -748,18 +750,20 @@ void displayMainSettings(bool partial) {
     if(WiFi.status() == WL_CONNECTED) display.print("Wi-Fi: Connected");
     else if(inApMode()) display.print("Wi-Fi: Access Point");
     else display.print("Wi-Fi: Disconnected");
-
-    display.setCursor(30, 22*3);
-    if(WiFi.status() == WL_CONNECTED) display.print("Wi-Fi: Connected");
-    else if(inApMode()) display.print("Wi-Fi: Access Point");
-    else display.print("Wi-Fi: Disconnected");
     
-    display.setCursor(30, 22*4);
+    display.setCursor(30, 22*3);
     if(inApMode()) {
       String str = "AP Mode: " + getIpAddr();
       display.print(str);
     } else {
       display.print("AP Mode: --");
+    } 
+
+    display.setCursor(30, 22*4);
+    if(backlight.getState()) {
+      display.print("Night Light: ON");
+    } else {
+      display.print("Night Light: OFF");
     } 
     
     display.setCursor(30, 22*5);
@@ -861,7 +865,7 @@ void displayTimeSettings(bool partial) {
 /* =========================== ALARM SETTIGNS 1 =========================== */
 
 void deleteDot(bool on) {
-  display.setPartialWindow(170, 8+22*4, 30, 30); // TODO: probably need to play around with the dimension
+  display.setPartialWindow(170, 8+22*4, 30, 30);
   display.firstPage();
   do
   {
@@ -886,7 +890,6 @@ void alarmSettingsLoop(Alarm& currentAlarm) {
 
   while(true) {
 
-    //if(checkScreenTimeout()) return;
     if(manageLoop()) return;
 
     if(rotaryEncoder.encoderChanged()) {
@@ -1069,7 +1072,6 @@ void displayAlarmSettings2(bool partial, Alarm& currentAlarm, const int selectio
   while (display.nextPage());
 }
 
-// TODO account for 12-hour time where first digit not displayed
 void displayAlarmTime(Alarm& currentAlarm, const bool active, const bool focus) {
 
   display.setCursor(115, 55);
@@ -1128,13 +1130,23 @@ void hoverChime(const int row) {
 }
 
 void displayChimeList() {
-    Serial.println("Entering Chime List Screen");
+    if(Serial) Serial.println("Entering Chime List Screen");
     listLoop("Chime", numFileTitles, 0, &printLineChime, &rowActionChime, &hoverChime);
-    stopTrack(); // TODO: check no alarm is playing
+    // TODO: should not stop track if alarm is playing
+    stopTrack();
 }
 
 /* =========================== LIST DISPLAY =========================== */
 
+/**
+ * Handles displaying a list to the display.
+ * @param title page title
+ * @param length number of elements in the list
+ * @param top starting index of list
+ * @param printLine function used to display a single line on the page
+ * @param clickAction function that determines what happens when a list item is clicked
+ * @param onHover function that determines what happens when a list item is hovered
+ */
 void listLoop(const char* title, const int length, int top, void (*printLine)(int,int,int), bool (*clickAction)(int), void (*onHover)(int)) {
 
   int prevEncoderPostition = 0;
@@ -1184,6 +1196,14 @@ void listLoop(const char* title, const int length, int top, void (*printLine)(in
   }
 }
 
+/**
+ * Displays a list on the page. Currently implemented with 4 rows.
+ * @param partial refresh type
+ * @param top index of first list item to be displayed
+ * @param title title of the page
+ * @param printLine function that uses x-coordinate, y-coordinate, and list index to generate
+ * a single line of the list
+ */
 void displayList(bool partial, int top, const char* title, void (*printLine)(int,int,int)) {
 
   if(partial) display.setPartialWindow(0, 0, display.width(), display.height());
@@ -1259,7 +1279,6 @@ void mathSnoozeLoop(Alarm& currentAlarm) {
 
   while(true) {
 
-    //if(checkScreenTimeout()) return;
     if(manageLoop()) return;
 
     if(rotaryEncoder.encoderChanged()) {
@@ -1321,9 +1340,9 @@ void mathSnoozeDisplay(bool partial, const String& equation, const String (&solu
   while (display.nextPage());
 }
 
-/* =========================== POPUP =========================== */
-// Display temporary message
+/* =========================== POPUP MESSAGE =========================== */
 
+// Dsiplays a popup message that will disappear after 10 seconds
 void displayPopup(const char* message) {
   if(Serial) {
     Serial.print("Displaying popup: ");
@@ -1349,7 +1368,7 @@ void displayPopup(const char* message) {
   timeSinceLastAction = millis();
 }
 
-/* =========================== ERROR =========================== */
+/* =========================== ERROR MESSAGE =========================== */
 
 void displayError(const char* message) {
   if(Serial) {
@@ -1371,13 +1390,14 @@ void displayError(const char* message) {
   while (display.nextPage());
   while(true) {
     // TODO: prevent screen timeout in this situation
+    // This function is not competely genertic with the WL connected bit
     if(manageLoop() || WiFi.status() == WL_CONNECTED) return;
   }
 }
 
 /* =========================== AP MODE MESSAGE =========================== */
 
-void displayApMode(const char* ipAddr) {
+void displayApMode(const char* ipStr) {
   if(Serial) Serial.print("Displaying AP mode message");
   display.firstPage();
   do
@@ -1394,20 +1414,9 @@ void displayApMode(const char* ipAddr) {
     display.setCursor(68,96);
     display.print("2. Go to");
     display.setCursor(100,114);
-    display.print(ipAddr);
+    display.print(ipStr);
   }
   while (display.nextPage());
-  /*while(true) {
-    // TODO: prevent screen timeout in this situation
-    if(manageLoop() || WiFi.status() == WL_CONNECTED) return;
-  }*/
-  while(true);
+  // ESP-32 will restart once the user has entered new Wi-Fi credentials
+  while(inApMode());
 }
-
-/*
-
-Wi-Fi Connection Failed
-1. Connect to alarm clock from phone wifi
-2. Go to 'ip-address'
-
-*/
